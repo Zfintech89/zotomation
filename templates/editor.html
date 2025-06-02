@@ -1,0 +1,1429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SlideWay AI - Presentation Editor</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/editor.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modal.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/all.min.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+    // Pass presentation data from Python to JavaScript
+    {% if existing_presentation %}
+        console.log('📋 Received existing presentation data');
+        window.existingPresentation = {{ existing_presentation | tojson }};
+    {% else %}
+        console.log('📋 No existing presentation data');
+        window.existingPresentation = null;
+    {% endif %}
+</script>
+    <style>.processing-mode-container {
+    margin-top: 20px;
+    padding: 20px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+}
+
+.processing-mode-container h4 {
+    margin: 0 0 15px 0;
+    color: #495057;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.processing-mode-container h4 i {
+    color: #4a90e2;
+}
+
+.processing-mode-tabs {
+    display: flex;
+    gap: 10px;
+}
+
+.processing-mode-tab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 15px;
+    background: white;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.processing-mode-tab:hover {
+    background-color: #f8fafe;
+    border-color: #4a90e2;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.processing-mode-tab.selected {
+    background-color: #f0f7ff;
+    border-color: #4a90e2;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.tab-icon {
+    font-size: 1rem;
+}
+
+.tab-title {
+    font-weight: 600;
+    color: #495057;
+    font-size: 0.95rem;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.processing-mode-grid {
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* Processing Mode Options */
+.processing-mode-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 2px solid transparent;
+}
+
+.processing-mode-option:hover {
+    background-color: #f8fafe;
+    border-color: #e3f2fd;
+}
+
+.processing-mode-option.selected {
+    background-color: #f0f7ff;
+    border-color: #4a90e2;
+}
+
+.mode-icon {
+    font-size: 1.5rem;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #f8f9fa;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.processing-mode-option.selected .mode-icon {
+    background-color: #e3f2fd;
+}
+
+.mode-details {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+}
+
+.mode-title {
+    font-weight: 600;
+    color: #495057;
+    font-size: 0.95rem;
+}
+
+.mode-description {
+    font-size: 0.8rem;
+    color: #6c757d;
+    line-height: 1.3;
+}
+
+/* Processing Mode Info */
+.processing-mode-info {
+    margin-top: 15px;
+    padding: 12px;
+    background-color: #e3f2fd;
+    border-left: 4px solid #2196f3;
+    border-radius: 4px;
+}
+
+.processing-mode-info .info-text {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #1565c0;
+    line-height: 1.4;
+}
+
+/* Responsive Design for Processing Mode Dropdown */
+@media (max-width: 768px) {
+    .processing-mode-dropdown-container {
+        padding: 15px;
+        margin-top: 15px;
+    }
+    
+    .processing-mode-toggle-button {
+        padding: 12px;
+    }
+    
+    #selected-processing-mode-name {
+        font-size: 0.95rem;
+    }
+    
+    #selected-processing-mode-desc {
+        font-size: 0.8rem;
+    }
+    
+    .processing-mode-option {
+        padding: 10px;
+    }
+    
+    .mode-icon {
+        width: 35px;
+        height: 35px;
+        font-size: 1.3rem;
+    }
+    
+    .mode-title {
+        font-size: 0.9rem;
+    }
+    
+    .mode-description {
+        font-size: 0.75rem;
+    }
+}
+
+/* Extracted Text Container Styles (Enhanced) */
+#extracted-text-container {
+    margin-top: 1.5rem;
+    padding: 0;
+    background-color: transparent;
+    border: none;
+    border-radius: 8px;
+    box-shadow: none;
+    animation: slideDown 0.3s ease-out;
+}
+
+#extracted-text-container.hidden {
+    display: none;
+}
+
+/* Extracted Text Preview Section */
+.extracted-text-preview {
+    background-color: white;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    margin-bottom: 15px;
+}
+
+.extracted-text-header {
+    background: white;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    padding: 15px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.extracted-text-header:hover {
+    border-color: #4a90e2;
+    background-color: #f8fafe;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.extracted-text-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+}
+
+.extracted-text-title {
+    font-weight: 600;
+    color: #495057;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.extracted-text-stats {
+    font-size: 0.85rem;
+    color: #6c757d;
+    line-height: 1.3;
+}
+
+.extracted-text-header .toggle-icon {
+    font-size: 1.2rem;
+    color: #6c757d;
+    transition: transform 0.3s ease;
+}
+
+/* Extracted Text Content Panel */
+.extracted-text-panel {
+    background: white;
+    border: 2px solid #4a90e2;
+    border-radius: 8px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+    margin-top: 5px;
+    animation: slideDown 0.3s ease-out;
+}
+
+#extracted-text {
+    width: 100%;
+    min-height: 150px;
+    max-height: 300px;
+    padding: 15px;
+    border: none;
+    border-radius: 6px;
+    background-color: #f8f9fa;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: #495057;
+    resize: vertical;
+    outline: none;
+}
+
+.text-info {
+    padding: 10px 15px;
+    background-color: #f8f9fa;
+    border-top: 1px solid #e9ecef;
+    border-radius: 0 0 6px 6px;
+}
+
+.text-info small {
+    color: #6c757d;
+    font-style: italic;
+    font-size: 0.8rem;
+}
+
+
+.file-preview:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border-color: #dee2e6;
+}
+
+.file-preview.hidden {
+    display: none;
+}
+
+/* File Info Container */
+.file-info {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    position: relative;
+}
+
+/* File Icon Styling */
+.file-icon {
+    flex-shrink: 0;
+    width: 50px;
+    height: 50px;
+    background: linear-gradient(135deg, #4a90e2, #357abd);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.file-icon i {
+    font-size: 1.5rem;
+}
+
+/* File type specific icon colors */
+.file-icon.pdf {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+}
+
+.file-icon.word {
+    background: linear-gradient(135deg, #2980b9, #1e6091);
+}
+
+.file-icon.text {
+    background: linear-gradient(135deg, #27ae60, #1e8449);
+}
+
+/* File Details */
+.file-details {
+    flex: 1;
+    min-width: 0; /* Prevents overflow */
+}
+
+.file-details h4 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #2c3e50;
+    word-break: break-word;
+    line-height: 1.3;
+}
+
+.file-details p {
+    margin: 0 0 0.75rem 0;
+    font-size: 0.9rem;
+    color: #6c757d;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.file-details p::before {
+    content: '📄';
+    font-size: 0.8rem;
+}
+
+/* Processing Status */
+.processing-status {
+    margin-top: 0.75rem;
+}
+
+.status-text {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background-color: #e3f2fd;
+    color: #1976d2;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    border: 1px solid #bbdefb;
+}
+
+/* Processing Indicator */
+.processing-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background-color: #fff3e0;
+    border-radius: 6px;
+    border: 1px solid #ffcc02;
+    color: #e65100;
+}
+
+.processing-indicator .spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #ffcc02;
+    border-top: 2px solid #e65100;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.processing-results {
+    background-color: #e8f5e8;
+    padding: 1rem;  /* Change this to: padding: 1rem 1rem 1rem 0; */
+    border-radius: 6px;
+    border: 1px solid #c3e6c3;
+    margin-left: 0;  /* Add this line */
+}
+.file-preview {
+    margin-top: 1.5rem;
+    padding: 1.5rem;  /* This might be causing the left spacing */
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+}
+.stats-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+}
+
+.stats-row:last-child {
+    margin-bottom: 0.75rem;
+}
+
+.stat-item {
+    background-color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #2e7d32;
+    border: 1px solid #a5d6a7;
+}
+
+/* Readability Indicator */
+.readability-indicator {
+    margin-top: 0.5rem;
+}
+
+.readability {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 15px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-transform: capitalize;
+}
+
+.readability.easy {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.readability.moderate {
+    background-color: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeaa7;
+}
+
+.readability.difficult {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f1b0b7;
+}
+
+/* Remove Button */
+.file-preview .btn {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+    border: 2px solid transparent;
+}
+
+.file-preview .btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.file-preview .btn-danger {
+    background-color: #dc3545;
+    color: white;
+}
+
+.file-preview .btn-danger:hover {
+    background-color: #c82333;
+    border-color: #bd2130;
+}
+
+/* Extracted Text Container */
+#extracted-text-container {
+    margin-top: 1.5rem;
+    padding: 1.5rem;
+    background-color: white;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    animation: slideDown 0.3s ease-out;
+}
+
+#extracted-text-container.hidden {
+    display: none;
+}
+
+#extracted-text-container h4 {
+    margin: 0 0 1rem 0;
+    font-size: 1.1rem;
+    color: #2c3e50;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+#extracted-text-container h4::before {
+    content: '📄';
+    font-size: 1rem;
+}
+
+#extracted-text {
+    width: 100%;
+    min-height: 150px;
+    padding: 1rem;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    background-color: #f8f9fa;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: #495057;
+    resize: vertical;
+}
+
+#extracted-text:focus {
+    outline: none;
+    border-color: #4a90e2;
+    box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
+}
+
+.text-info {
+    margin-top: 0.5rem;
+}
+
+.text-info small {
+    color: #6c757d;
+    font-style: italic;
+    font-size: 0.8rem;
+}
+
+/* Animation for smooth appearance */
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+        max-height: 0;
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+        max-height: 500px;
+    }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .file-info {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    
+    .file-icon {
+        align-self: center;
+    }
+    
+    .file-preview .btn {
+        position: static;
+        margin-top: 1rem;
+        align-self: flex-start;
+    }
+    
+    .stats-row {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .stat-item {
+        text-align: center;
+    }
+    
+    #extracted-text-container {
+        padding: 1rem;
+    }
+    
+    #extracted-text {
+        min-height: 120px;
+        font-size: 0.8rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .file-preview {
+        padding: 1rem;
+        margin-top: 1rem;
+    }
+    
+    .file-details h4 {
+        font-size: 1rem;
+    }
+    
+    .file-icon {
+        width: 40px;
+        height: 40px;
+        font-size: 1.2rem;
+    }
+    
+    #extracted-text-container {
+        padding: 0.75rem;
+    }
+}
+
+.input-method-selection {
+    margin-bottom: 2rem;
+}
+
+.method-tabs {
+    display: flex;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 4px;
+    gap: 4px;
+}
+
+.method-tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem 0.5rem;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    color: #6b7280;
+    font-weight: 500;
+}
+
+.method-tab:hover {
+    background-color: rgba(74, 144, 226, 0.1);
+    color: #4a90e2;
+}
+
+.method-tab.active {
+    background-color: white;
+    color: #4a90e2;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.method-tab i {
+    font-size: 1.5rem;
+}
+
+.method-tab span {
+    font-size: 0.875rem;
+}
+
+/* Input Panel Styles */
+.input-panel {
+    display: none;
+}
+
+.input-panel.active {
+    display: block;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Text Input Styles */
+.text-content-input {
+    min-height: 300px;
+    resize: vertical;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+.text-stats {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+    color: #6b7280;
+}
+
+.text-stats .separator {
+    color: #d1d5db;
+}
+
+#suggested-slides {
+    color: #4a90e2;
+    font-weight: 500;
+}
+
+/* Document Upload Styles */
+.upload-area {
+    border: 2px dashed #d1d5db;
+    border-radius: 8px;
+    padding: 3rem 2rem;
+    text-align: center;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.upload-area:hover {
+    border-color: #4a90e2;
+    background-color: rgba(74, 144, 226, 0.05);
+}
+
+.upload-area.dragover {
+    border-color: #4a90e2;
+    background-color: rgba(74, 144, 226, 0.1);
+}
+
+.upload-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+}
+
+.upload-icon {
+    font-size: 3rem;
+    color: #9ca3af;
+}
+
+.upload-area h4 {
+    margin: 0;
+    color: #374151;
+    font-size: 1.25rem;
+}
+
+.upload-area p {
+    margin: 0;
+    color: #6b7280;
+}
+
+
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .method-tabs {
+        flex-direction: column;
+    }
+    
+    .method-tab {
+        flex-direction: row;
+        justify-content: center;
+        padding: 0.75rem;
+    }
+    
+    .method-tab i {
+        font-size: 1.25rem;
+    }
+    
+    .text-content-input {
+        min-height: 200px;
+    }
+    
+    .upload-area {
+        padding: 2rem 1rem;
+    }
+}
+    /* Enhanced UI styles */
+    .editor-container {
+        background-color: #f7f9fc;
+    }
+    
+    .editor-header {
+        background-color: white;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        padding: 1rem 2rem;
+    }
+    
+    .logo h1 {
+        color: #4a6cf7;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+    }
+    
+    .logo h1:before {
+        content: '\f108';
+        font-family: 'Font Awesome 6 Free';
+        font-weight: 900;
+        margin-right: 10px;
+        font-size: 1.2rem;
+    }
+    
+    .btn {
+        transition: all 0.3s ease;
+        font-weight: 500;
+        border-radius: 6px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
+    }
+    
+    .btn-primary {
+        background: linear-gradient(135deg, #4a6cf7, #4a90e2);
+        border: none;
+    }
+    
+    .btn-primary:hover {
+        background: linear-gradient(135deg, #3955d1, #3a7bc8);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    }
+    
+    .btn-secondary {
+        background-color: white;
+        border: 1px solid #e0e0e0;
+        color: #444;
+    }
+    
+    .btn-secondary:hover {
+        background-color: #f5f5f5;
+        border-color: #d0d0d0;
+    }
+    
+    .sidebar, .right-sidebar {
+        background-color: white;
+        box-shadow: 0 0 15px rgba(0, 0, 0, 0.05);
+    }
+    
+    .generation-panel {
+        padding: 1.5rem;
+        border-radius: 8px;
+    }
+    
+    .generation-panel h2 {
+        color: #333;
+        font-size: 1.25rem;
+        margin-bottom: 1.5rem;
+        position: relative;
+        padding-bottom: 0.75rem;
+    }
+    
+    .generation-panel h2:after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 40px;
+        height: 3px;
+        background: linear-gradient(to right, #4a6cf7, #4a90e2);
+        border-radius: 3px;
+    }
+    
+    .form-control {
+        border: 1px solid #e0e0e0;
+        border-radius: 6px;
+        padding: 0.75rem 1rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        transition: all 0.3s ease;
+    }
+    
+    .form-control:focus {
+        border-color: #4a90e2;
+        box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.2);
+    }
+    
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+    
+    label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+        color: #555;
+    }
+
+    
+    .slide-controls {
+        background-color: white;
+        padding: 0.75rem;
+        border-radius: 6px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    }
+    #extracted-text-container {
+    margin-top: 20px;
+}
+#extracted-text {
+    width: 100%;
+    border: 1px solid #ccc;
+    padding: 10px;
+    background: #f9f9f9;
+}
+.processing-options {
+    margin-top: 10px;
+}
+.processing-options label {
+    margin-right: 15px;
+}
+    .slide-thumbnail {
+        border-radius: 6px;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    }
+    
+    .slide-thumbnail:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 5px 10px rgba(0, 0, 0, 0.1);
+    }
+    
+    .notification {
+        border-radius: 8px;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    }
+    
+    /* Fix for the right sidebar to always show full thumbnails with scrolling */
+    .right-sidebar {
+        width: 15rem;
+        height: calc(100vh - 72px);
+        overflow: hidden;
+        position: relative;
+    }
+    
+    .slides-panel {
+        padding: 1.5rem;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+    
+    #slides-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        overflow-y: auto;
+        flex: 1;
+        padding-right: 5px;
+    }
+    
+    .slide-thumbnail {
+        width: 100%;
+        height: 120px;
+        position: relative;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        overflow: hidden;
+        flex-shrink: 0;
+    }
+    
+    /* Improved templates panel */
+    .template-toggle-button {
+        background: white;
+        border: 1px solid #e0e0e0;
+        border-radius: 6px;
+        padding: 0.75rem 1rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        font-weight: 500;
+    }
+    
+    .templates-panel {
+        border-radius: 8px;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+        border: none;
+    }
+    
+    .template-option {
+        border-radius: 6px;
+    }
+    
+    .template-option.selected {
+        background-color: #f0f7ff;
+        border-color: #4a90e2;
+    }
+    
+    .preview-slide {
+        padding: 30px;
+        background-color: white;
+    }
+    
+    /* Responsive improvements */
+    @media (max-width: 1200px) {
+        .right-sidebar {
+            width: 100%;
+            height: 300px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        #slides-list {
+            padding-bottom: 10px;
+        }
+    }
+    
+    @media (max-width: 768px) {
+        .right-sidebar {
+            height: 250px;
+        }
+        
+        .editor-header {
+            padding: 1rem;
+        }
+    }
+    
+    /* Timeline Event Form Styles */
+    .timeline-event-form {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border: 1px solid #e9ecef;
+        transition: all 0.3s ease;
+        animation: slideDown 0.3s ease-out;
+    }
+
+    .timeline-event-form:hover {
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        transform: translateY(-2px);
+    }
+
+    .timeline-event-form h4 {
+        color: #495057;
+        margin-bottom: 1rem;
+        font-size: 1.1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    #add-event-btn {
+        margin: 1rem 0;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1.25rem;
+        background-color: #4a90e2;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 500;
+        transition: all 0.2s ease;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    #add-event-btn:hover {
+        background-color: #357abd;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    #add-event-btn:active {
+        transform: translateY(1px);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    }
+
+    #add-event-btn::before {
+        content: '+';
+        font-size: 1.2em;
+        margin-right: 0.5rem;
+    }
+
+    .timeline-event-form .form-group {
+        margin-bottom: 1rem;
+    }
+
+    .timeline-event-form label {
+        color: #495057;
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+    }
+
+    .timeline-event-form input[type="text"],
+    .timeline-event-form textarea {
+        width: 100%;
+        padding: 0.5rem;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        transition: border-color 0.2s ease;
+    }
+
+    .timeline-event-form input[type="text"]:focus,
+    .timeline-event-form textarea:focus {
+        outline: none;
+        border-color: #86b7fe;
+        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+    }
+
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    </style>
+</head>
+<body>
+    <div class="editor-container">
+        <header class="editor-header">
+            <div class="logo">
+                <h1>SlideWay AI</h1>
+            </div>
+            <div class="editor-controls">
+                <button id="save-btn" class="btn btn-primary"><i class="fas fa-save"></i> Save</button>
+                <button id="export-btn" class="btn btn-secondary" disabled><i class="fas fa-file-export"></i> Export</button>
+                <a href="{{ url_for('dashboard') }}" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Dashboard</a>
+            </div>
+        </header>
+        
+        <main class="editor-main">
+            <section class="sidebar">
+                <div class="generation-panel">
+                    <h2>Create Your Presentation</h2>
+                    <div class="input-method-selection">
+    <div class="method-tabs">
+        <button class="method-tab active" data-method="topic" id="topic-tab">
+            <i class="fas fa-lightbulb"></i>
+            <span>Topic</span>
+        </button>
+        <button class="method-tab" data-method="text" id="text-tab">
+            <i class="fas fa-file-text"></i>
+            <span>Text</span>
+        </button>
+        <button class="method-tab" data-method="document" id="document-tab">
+            <i class="fas fa-file-upload"></i>
+            <span>Document</span>
+        </button>
+    </div>
+</div>
+                 <div id="topic-input-panel" class="input-panel active">
+    <div class="form-group">
+        <label for="topic">Presentation Topic</label>
+        <input type="text" id="topic" class="form-control" 
+               placeholder="Enter your presentation topic" 
+               value="{{ presentation.topic if presentation else '' }}">
+    </div>
+</div>
+<!-- Add this right after the topic-input-panel -->
+<div id="text-input-panel" class="input-panel">
+    <div class="form-group">
+        <label for="content-text">Text Content</label>
+        <textarea id="content-text" 
+                  class="form-control text-content-input" 
+                  placeholder="Paste your text content here... (articles, reports, notes, etc.)"
+                  rows="12"></textarea>
+        <div class="text-stats">
+            <span id="char-count">0 characters</span>
+            <span class="separator">•</span>
+            <span id="word-count">0 words</span>
+            <span class="separator">•</span>
+            <span id="suggested-slides">Suggested: 5 slides</span>
+        </div>
+    </div>
+</div>
+<div class="input-panel" id="document-input-panel">
+    <div class="upload-area" id="upload-area">
+        <div class="upload-content">
+            <div class="upload-icon">
+                <i class="fas fa-cloud-upload-alt"></i>
+            </div>
+            <h4>Upload Document</h4>
+            <p>Drop PDF, DOCX, or TXT files here or click to browse</p>
+            <input type="file" id="file-input" accept=".pdf,.docx,.doc,.txt" style="display: none;">
+            <button class="btn btn-secondary" type="button">Choose File</button>
+
+        </div>
+    </div>
+    
+    <div id="file-preview" class="file-preview hidden"></div>
+    
+    <div id="extracted-text-container" class="hidden">
+        <h4>Extracted Text Preview</h4>
+        <textarea id="extracted-text" rows="10" readonly></textarea>
+        <div class="text-info">
+            <small>This text will be used to generate your presentation slides</small>
+        </div>
+    </div>
+</div>
+                    
+                    <div class="form-group">
+                        <label for="slide-count">Number of Slides</label>
+                        <input type="number" 
+                               id="slide-count" 
+                               class="form-control" 
+                               min="1" 
+                               max="10" 
+                               onchange="validateSlideCount(this)"
+                               oninput="validateSlideCount(this)"
+                               value="{{ presentation.slide_count if presentation else 5 }}">
+                        <small id="slide-count-error" class="error-message" style="color: #dc3545; display: none;">
+                            Please enter a number between 1 and 10
+                        </small>
+                    </div>
+                    
+                    <div class="template-selection">
+                        <h3>Choose Template</h3>
+                        <div id="templates-container">
+                            <!-- Dropdown will be inserted here -->
+                        </div>
+                    </div>
+                    
+                    <div class="action-buttons">
+                        <button style="margin-top: 20px;" id="generate-btn" class="btn btn-primary"><i class="fas fa-magic"></i> Generate Presentation</button>
+
+                    </div>
+                </div>
+            </section>
+            
+            <section class="preview-section">
+                <div class="preview-header">
+                    <h2>Slide Preview</h2>
+                    <div class="slide-controls" id="slide-controls">
+                        <!-- Slide controls will be dynamically inserted here -->
+                    </div>
+                </div>
+                
+                <div class="preview-edit-wrapper">
+                    <div class="preview-container">
+                        <div id="slide-preview" class="slide-preview">
+                            <div class="placeholder-message">
+                                Your slide preview will appear here after generating content.
+                            </div>
+                        </div>
+                        <div id="loading" class="loading-overlay hidden">
+                            <div class="loading-spinner"></div>
+                            <p>Creating your amazing presentation...</p>
+                        </div>
+                    </div>
+                    <div class="preview-unavailable">
+    <div class="icon">📱💻</div>
+    <h3>Preview Not Available</h3>
+    <p>The slide preview requires a larger screen to display properly. Please use a tablet or desktop device to view and edit your presentation slides.</p>
+    <p><small>You can still use the sidebar controls to generate and manage your presentation content.</small></p>
+</div>
+                    <div id="edit-form" class="edit-form hidden">
+                        <!-- Edit form content will be dynamically inserted here -->
+                    </div>
+                </div>
+                
+                <div id="external-edit-controls" class="edit-controls hidden">
+                    <button id="edit-slide-btn" class="btn btn-primary"><i class="fas fa-edit"></i> Edit This Slide</button>
+                </div>
+            </section>
+            
+            <section class="right-sidebar">
+                <div class="slides-panel">
+                    <h2>Slides</h2>
+                    <div id="slides-list">
+                        <!-- Slide thumbnails will be inserted here -->
+                        <div class="slides-placeholder">Your slides will appear here after generation</div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+    
+    <!-- Notification Toast -->
+    <div id="notification" class="notification">
+        <div class="notification-content">
+            <i class="notification-icon"></i>
+            <span class="notification-message"></span>
+        </div>
+    </div>
+    
+    <!-- Script Imports -->
+    <script src="{{ url_for('static', filename='js/templates.js') }}"></script>
+<script src="{{ url_for('static', filename='js/input-methods.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/ham.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/layouts.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/form-creators.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/editor.js') }}"></script>
+    
+    <script>
+        // Set up existing presentation data before editor.js loads
+        {% if existing_presentation %}
+          console.log("Setting up existing presentation data:", {{ existing_presentation.topic|tojson|safe }});
+          // Make the existing presentation data available globally
+          window.existingPresentation = {{ existing_presentation|tojson|safe }};
+        {% endif %}
+    </script>
+    <script>
+        // Detailed logging for debugging
+        document.addEventListener('DOMContentLoaded', function() {
+          console.log("DOM Content Loaded");
+          
+          {% if existing_presentation %}
+            console.log("=== EXISTING PRESENTATION DATA ===");
+            console.log("ID:", {{ existing_presentation.id|tojson|safe }});
+            console.log("Topic:", {{ existing_presentation.topic|tojson|safe }});
+            console.log("Template ID:", {{ existing_presentation.template_id|tojson|safe }});
+            
+            // Log slides data
+            const slides = {{ existing_presentation.slides|tojson|safe }};
+            console.log("Number of slides:", slides.length);
+            
+            for (let i = 0; i < slides.length; i++) {
+              console.log(`Slide ${i+1}:`);
+              console.log(`  Layout: ${slides[i].layout}`);
+              console.log(`  Content keys: ${Object.keys(slides[i].content)}`);
+            }
+            
+            // Full data object
+            console.log("Complete presentation object:", {{ existing_presentation|tojson|safe }});
+            
+            // Store it in window for initialization
+            window.existingPresentation = {{ existing_presentation|tojson|safe }};
+            
+            // Check if initialization function exists
+            console.log("initializeWithExistingPresentation exists:", 
+                        typeof window.initializeWithExistingPresentation === 'function');
+                        
+            // Check if appState exists
+            console.log("appState exists:", typeof window.appState === 'object');
+            
+            // Try to call the initialization function after a delay
+            setTimeout(() => {
+              if (typeof window.initializeWithExistingPresentation === 'function') {
+                console.log("Calling initializeWithExistingPresentation...");
+                window.initializeWithExistingPresentation(window.existingPresentation);
+              } else {
+                console.error("initializeWithExistingPresentation function not found!");
+              }
+            }, 500);
+          {% else %}
+            console.log("No existing presentation data provided");
+          {% endif %}
+        });
+    </script>
+    <script>
+    function validateSlideCount(input) {
+    const errorElement = document.getElementById('slide-count-error');
+    const value = parseInt(input.value);
+    const MIN_SLIDES = 1;
+    const MAX_SLIDES = 10;
+    
+    if (isNaN(value) || value < MIN_SLIDES || value > MAX_SLIDES) {
+        // Show error but do not modify the input
+        errorElement.style.display = 'block';
+        errorElement.textContent = `Please enter a number between ${MIN_SLIDES} and ${MAX_SLIDES}`;
+        
+        // Optional: Add a red border to highlight the error
+        input.style.borderColor = '#dc3545';
+        
+        return false;
+    } else {
+        // Reset input styling
+        errorElement.style.display = 'none';
+        input.style.borderColor = '';
+        return true;
+    }
+}
+
+    // Function to sanitize topic for API calls (made globally available)
+    window.sanitizeTopicForApi = function(topic) {
+        // Remove special characters <>?:"|{} and others that could cause issues
+        return topic.replace(/[<>?:"\\|{}]/g, '');
+    }
+    
+    </script>
+    <script src="{{ url_for('static', filename='js/modal.js') }}"></script>
+</body>
+</html>

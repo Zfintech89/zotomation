@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Presentation - {{ presentation.topic }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/all.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/editor.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo">
+                <a href="{{ url_for('dashboard') }}">Presentation Generator</a>
+            </div>
+            <div class="user-nav">
+                <span>Welcome, {{ session.username }}</span>
+                <a href="{{ url_for('auth.logout') }}" class="btn btn-secondary">Logout</a>
+            </div>
+        </nav>
+    </header>
+
+    <main class="editor-container">
+        <div class="editor-sidebar">
+            <div class="editor-settings">
+                <h2>Presentation Settings</h2>
+                <div class="form-group">
+                    <label for="topic">Topic:</label>
+                    <input type="text" id="topic" name="topic" value="{{ presentation.topic }}" class="form-control">
+                </div>
+                
+                <h3>Template</h3>
+                <div id="templates-container" class="templates-grid">
+                    <!-- Templates will be loaded here -->
+                </div>
+            </div>
+            
+            <div class="slides-list-container">
+                <h2>Slides</h2>
+                <div id="slides-list" class="slides-list">
+                    <!-- Slides will be loaded here -->
+                </div>
+                <button id="add-slide-btn" class="btn btn-primary"><i class="fas fa-plus"></i> Add Slide</button>
+            </div>
+        </div>
+        
+        <div class="editor-main">
+            <div class="editor-actions">
+                <button id="save-btn" class="btn btn-primary"><i class="fas fa-save"></i> Save Changes</button>
+                <button id="export-btn" class="btn btn-secondary"><i class="fas fa-file-export"></i> Export to PowerPoint</button>
+                <a href="{{ url_for('dashboard') }}" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
+            </div>
+            
+            <div class="slide-preview-container">
+                <div id="loading" class="loading hidden">
+                    <div class="spinner"></div>
+                    <p>Processing...</p>
+                </div>
+                
+                <div id="slide-preview" class="slide-preview">
+                    <!-- Slide preview will be rendered here -->
+                </div>
+                
+                <div id="external-edit-controls" class="edit-controls">
+                    <!-- Edit controls will be rendered here -->
+                </div>
+                
+                <div id="edit-form" class="edit-form hidden">
+                    <!-- Edit form will be rendered here -->
+                </div>
+                
+                <div id="slide-controls" class="slide-controls">
+                    <!-- Slide navigation controls will be rendered here -->
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <div id="notification" class="notification">
+        <span class="notification-icon"></span>
+        <span class="notification-message"></span>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="{{ url_for('static', filename='js/templates.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/layouts.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/presentation_editor.js') }}"></script>
+    
+    
+    <script>
+        // Initialize with existing presentation data
+        window.existingPresentation = {{ presentation|tojson|safe }};
+    </script>
+</body>
+</html>

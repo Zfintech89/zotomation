@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics - PowerPoint Generator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/all.min.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <script src="{{ url_for('static', filename='js/chart.js') }}"></script>
+    
+    <style>
+        /* Base responsive styles */
+        * {
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .dashboard-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            width: 100vw;
+            background-color: var(--bg-color, #f8fafc);
+        }
+        
+        /* Fixed header */
+        .dashboard-header {
+            flex-shrink: 0;
+            height: 60px;
+            background: white;
+            border-bottom: 1px solid var(--border-color, #e2e8f0);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            z-index: 100;
+        }
+        
+        .logo h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            color: var(--primary-color, #3a0ca3);
+        }
+        
+        .user-menu {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .username {
+            color: var(--text-secondary, #64748b);
+            font-size: 0.875rem;
+        }
+        
+        .logout-btn {
+            padding: 0.5rem 1rem;
+            background: #ef4444;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            transition: background 0.3s;
+        }
+        
+        .logout-btn:hover {
+            background: #dc2626;
+        }
+        
+        /* Scrollable main content */
+        .analytics-container {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 1.5rem 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            background-color: var(--bg-color, #f8fafc);
+        }
+        
+        /* Custom scrollbar */
+        .analytics-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .analytics-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        
+        .analytics-container::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+        
+        .analytics-container::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+        
+        /* Analytics header */
+        .analytics-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border-color, #e2e8f0);
+            padding-bottom: 1rem;
+            flex-shrink: 0;
+        }
+        
+        .analytics-header h2 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--text-primary, #1e293b);
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .analytics-header h2 i {
+            color: var(--primary-color, #3a0ca3);
+        }
+        
+        /* Enhanced Back to Dashboard Button */
+        .back-to-dashboard {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.625rem;
+            padding: 0.75rem 1.25rem;
+            background-color: var(--card-bg, white);
+            border: 1px solid var(--border-color, #e2e8f0);
+            border-radius: var(--radius-md, 8px);
+            text-decoration: none;
+            color: var(--text-secondary, #64748b);
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .back-to-dashboard::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 0;
+            height: 100%;
+            background-color: rgba(99, 102, 241, 0.1);
+            transition: width 0.3s ease;
+            z-index: 0;
+        }
+        
+        .back-to-dashboard:hover {
+            background-color: var(--card-bg, white);
+            color: var(--primary-color, #3a0ca3);
+            border-color: var(--primary-color, #3a0ca3);
+            transform: translateX(-3px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            text-decoration: none;
+        }
+        
+        .back-to-dashboard:hover::before {
+            width: 100%;
+        }
+        
+        .back-to-dashboard i {
+            font-size: 1rem;
+            position: relative;
+            z-index: 1;
+            transition: transform 0.3s ease;
+        }
+        
+        .back-to-dashboard span {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .back-to-dashboard:hover i {
+            transform: translateX(-3px);
+        }
+        
+        /* Top dashboard button */
+        .top-dash-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            background-color: #3a0ca3;
+            color: white;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-right: 20px;
+            transition: all 0.3s ease;
+        }
+        
+        .top-dash-btn:hover {
+            background-color: #4c1bb3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        /* Stats cards - responsive grid */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.25rem;
+            width: 100%;
+            flex-shrink: 0;
+        }
+        
+        .stat-card {
+            border-radius: var(--radius-lg, 12px);
+            padding: 1.75rem;
+            text-align: left;
+            position: relative;
+            overflow: hidden;
+            background: white;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-height: 160px;
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+        }
+        
+        .stat-card .stat-icon {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            font-size: 1.5rem;
+            opacity: 0.2;
+            color: var(--text-primary, #1e293b);
+        }
+        
+        .stat-card .stat-value {
+            font-size: 2.25rem;
+            font-weight: 700;
+            margin: 0.75rem 0 0.5rem;
+            position: relative;
+            z-index: 2;
+            line-height: 1.2;
+            background: linear-gradient(135deg, var(--primary-color, #3a0ca3), #6d28d9);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: inline-block;
+        }
+        
+        .stat-card .stat-label {
+            font-size: 0.9375rem;
+            color: var(--text-secondary, #64748b);
+            font-weight: 500;
+            position: relative;
+            z-index: 2;
+            letter-spacing: 0.01em;
+            opacity: 0.9;
+            margin-top: 0.25rem;
+            text-transform: uppercase;
+            font-size: 0.8125rem;
+        }
+        
+        /* Card color variants */
+        .card-blue {
+            background: linear-gradient(145deg, #ffffff 0%, #f0f9ff 100%);
+            border-left: 4px solid #0284c7;
+        }
+        
+        .card-blue .stat-value {
+            background: linear-gradient(135deg, #0284c7, #0ea5e9);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .card-purple {
+            background: linear-gradient(145deg, #ffffff 0%, #f5f3ff 100%);
+            border-left: 4px solid #9333ea;
+        }
+        
+        .card-purple .stat-value {
+            background: linear-gradient(135deg, #9333ea, #a855f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .card-green {
+            background: linear-gradient(145deg, #ffffff 0%, #f0fdf4 100%);
+            border-left: 4px solid #16a34a;
+        }
+        
+        .card-green .stat-value {
+            background: linear-gradient(135deg, #16a34a, #22c55e);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .card-orange {
+            background: linear-gradient(145deg, #ffffff 0%, #fff7ed 100%);
+            border-left: 4px solid #ea580c;
+        }
+        
+        .card-orange .stat-value {
+            background: linear-gradient(135deg, #ea580c, #f97316);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        /* Analytics cards */
+        .analytics-card {
+            background-color: var(--card-bg, white);
+            border-radius: var(--radius-xl, 12px);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+            padding: 2rem;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+        
+        .analytics-card:hover {
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+            transform: translateY(-3px);
+        }
+        
+        .analytics-card h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary, #1e293b);
+            margin: 0 0 1.5rem 0;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid var(--border-color, #e2e8f0);
+            display: flex;
+            align-items: center;
+            gap: 0.625rem;
+        }
+        
+        .analytics-card h3 i {
+            color: var(--primary-color, #3a0ca3);
+        }
+        
+        /* Chart containers - improved responsive grid */
+        .charts-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+            gap: 2rem;
+            width: 100%;
+            margin-bottom: 1rem;
+        }
+        
+        .chart-container {
+            width: 100%;
+            height: 400px;
+            position: relative;
+            padding: 1.5rem;
+            border: 1px solid var(--border-color, #e2e8f0);
+            border-radius: var(--radius-md, 8px);
+            background-color: var(--card-bg, white);
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            overflow: hidden;
+        }
+        
+        .chart-container:hover {
+            border-color: var(--primary-light, #818cf8);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        
+        .chart-container canvas {
+            width: 100% !important;
+            height: 100% !important;
+            max-width: 100%;
+            max-height: 100%;
+        }
+        
+        /* Table styles with horizontal scroll */
+        .table-container {
+            overflow: auto;
+            background-color: var(--card-bg, white);
+            border-radius: var(--radius-md, 8px);
+            margin-top: 1.5rem;
+            max-height: 400px;
+        }
+        
+        .table-container::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        .table-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        
+        .table-container::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+        
+        .table-container::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+            min-width: 600px;
+        }
+        
+        th, td {
+            padding: 1rem 1.25rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color, #e2e8f0);
+            white-space: nowrap;
+        }
+        
+        th {
+            background-color: var(--card-bg-secondary, #f8fafc);
+            font-weight: 600;
+            color: var(--text-primary, #1e293b);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        th:first-child {
+            border-top-left-radius: var(--radius-md, 8px);
+        }
+        
+        th:last-child {
+            border-top-right-radius: var(--radius-md, 8px);
+        }
+        
+        tbody tr {
+            transition: all 0.3s ease;
+        }
+        
+        tbody tr:hover {
+            background-color: rgba(99, 102, 241, 0.05);
+        }
+        
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+        
+        /* Dashboard navigation buttons in footer */
+        .analytics-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border-color, #e2e8f0);
+            flex-shrink: 0;
+        }
+        
+        .dashboard-navigation {
+            display: flex;
+            gap: 1rem;
+        }
+        
+        .dashboard-button {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.25rem;
+            background-color: var(--card-bg, white);
+            border: 1px solid var(--border-color, #e2e8f0);
+            border-radius: var(--radius-md, 8px);
+            color: var(--text-secondary, #64748b);
+            text-decoration: none;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .dashboard-button:hover {
+            background-color: var(--primary-color, #3a0ca3);
+            color: white;
+            border-color: var(--primary-color, #3a0ca3);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        
+        /* Responsive adjustments */
+        @media (max-width: 1200px) {
+            .charts-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .chart-container {
+                height: 350px;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .dashboard-header {
+                padding: 0 1rem;
+                flex-wrap: wrap;
+                height: auto;
+                min-height: 60px;
+            }
+            
+            .logo h1 {
+                font-size: 1.25rem;
+            }
+            
+            .user-menu {
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+            
+            .analytics-container {
+                padding: 1rem;
+            }
+            
+            .analytics-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+            }
+            
+            .stats-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .charts-row {
+                grid-template-columns: 1fr;
+                gap: 1.5rem;
+            }
+            
+            .chart-container {
+                height: 300px;
+                padding: 1rem;
+            }
+            
+            .analytics-card {
+                padding: 1.5rem;
+            }
+            
+            .top-dash-btn {
+                padding: 8px 16px;
+                font-size: 0.8rem;
+                margin-right: 0;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .dashboard-header {
+                padding: 0 0.5rem;
+            }
+            
+            .analytics-container {
+                padding: 0.5rem;
+            }
+            
+            .charts-row {
+                gap: 1rem;
+            }
+            
+            .chart-container {
+                height: 250px;
+                padding: 0.75rem;
+            }
+            
+            .stat-card {
+                padding: 1.25rem;
+                min-height: 120px;
+            }
+            
+            .stat-card .stat-value {
+                font-size: 1.75rem;
+            }
+            
+            .analytics-card h3 {
+                font-size: 1.125rem;
+            }
+            
+            .analytics-card {
+                padding: 1rem;
+            }
+        }
+        
+        /* High DPI displays */
+        @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+            .dashboard-container {
+                -webkit-font-smoothing: antialiased;
+                -moz-osx-font-smoothing: grayscale;
+            }
+        }
+        
+        /* Print styles */
+        @media print {
+            .dashboard-header,
+            .analytics-footer {
+                display: none;
+            }
+            
+            .analytics-container {
+                overflow: visible;
+                padding: 1rem;
+            }
+            
+            .analytics-card {
+                break-inside: avoid;
+                margin-bottom: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <header class="dashboard-header">
+            <div class="logo">
+                <h1>SlideWay AI</h1>
+            </div>
+            <div class="user-menu">
+                <a href="{{ url_for('dashboard') }}" class="top-dash-btn">
+                    <i class="fas fa-tachometer-alt"></i> Back to Dashboard
+                </a>
+                <span class="username">Welcome, {{ username }}</span>
+                <a href="{{ url_for('auth.logout') }}" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a>
+            </div>
+        </header>
+
+        <main class="analytics-container">
+            <div class="analytics-footer">
+                <div class="dashboard-navigation">
+                </div>
+            </div>
+
+            <div class="stats-row">
+                <div class="stat-card card-blue">
+                    <div class="stat-icon"><i class="fas fa-file-powerpoint"></i></div>
+                    <div class="stat-value">{{ presentation_count }}</div>
+                    <div class="stat-label">Total Presentations</div>
+                </div>
+                
+                <div class="stat-card card-purple">
+                    <div class="stat-icon"><i class="fas fa-layer-group"></i></div>
+                    <div class="stat-value">{{ avg_slides }}</div>
+                    <div class="stat-label">Avg. Slides per Presentation</div>
+                </div>
+                
+                <div class="stat-card card-green">
+                    <div class="stat-icon"><i class="fas fa-calendar-alt"></i></div>
+                    <div class="stat-value">{{ recent_presentations|length }}</div>
+                    <div class="stat-label">Presentations (Last 30 Days)</div>
+                </div>
+                
+                <div class="stat-card card-orange">
+                    <div class="stat-icon"><i class="fas fa-palette"></i></div>
+                    <div class="stat-value">{{ template_usage|length }}</div>
+                    <div class="stat-label">Different Templates Used</div>
+                </div>
+            </div>
+
+            <!-- Charts -->
+            <div class="analytics-card">
+                <h3><i class="fas fa-chart-bar"></i> Activity Trends</h3>
+                
+                <div class="charts-row">
+                    <div class="chart-container">
+                        <canvas id="monthlyActivityChart"></canvas>
+                    </div>
+                    
+                    <div class="chart-container">
+                        <canvas id="weekdayActivityChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="analytics-card">
+                <h3><i class="fas fa-puzzle-piece"></i> Content Analysis</h3>
+                
+                <div class="charts-row">
+                    <div class="chart-container">
+                        <canvas id="templateUsageChart"></canvas>
+                    </div>
+                    
+                    <div class="chart-container">
+                        <canvas id="layoutUsageChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Recent Activity Table -->
+            <div class="analytics-card">
+                <h3><i class="fas fa-history"></i> Recent Activity</h3>
+                
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Topic</th>
+                                <th>Template</th>
+                                <th>Slides</th>
+                                <th>Created</th>
+                                <th>Last Updated</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for presentation in recent_presentations[:10] %}
+                            <tr>
+                                <td>{{ presentation.topic }}</td>
+                                <td>{{ presentation.template_id }}</td>
+                                <td>{{ presentation.slide_count }}</td>
+                                <td>{{ presentation.created_at|format_datetime }}</td>
+                                <td>{{ presentation.updated_at|format_datetime }}</td>
+                            </tr>
+                            {% endfor %}
+                            
+                            {% if recent_presentations|length == 0 %}
+                            <tr>
+                                <td colspan="5" style="text-align: center;">No recent activity</td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Most Edited Presentations -->
+            {% if top_edited %}
+            <div class="analytics-card">
+                <h3><i class="fas fa-edit"></i> Most Actively Edited Presentations</h3>
+                
+                <div class="chart-container">
+                    <canvas id="editFrequencyChart"></canvas>
+                </div>
+            </div>
+            {% endif %}
+        </main>
+    </div>
+
+    <script>
+        // Chart.js initialization
+        document.addEventListener('DOMContentLoaded', function() {
+            // Monthly Activity Chart
+            const monthlyCtx = document.getElementById('monthlyActivityChart').getContext('2d');
+            new Chart(monthlyCtx, {
+                type: 'line',
+                data: {
+                    labels: {{ months_labels|tojson }},
+                    datasets: [{
+                        label: 'Presentations Created',
+                        data: {{ months_data|tojson }},
+                        backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                        borderColor: 'rgba(59, 130, 246, 1)',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointBackgroundColor: 'rgba(59, 130, 246, 1)',
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Monthly Creation Activity',
+                            font: {
+                                size: 16
+                            }
+                        },
+                        legend: {
+                            position: 'bottom'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Weekday Activity Chart
+            const weekdayCtx = document.getElementById('weekdayActivityChart').getContext('2d');
+            new Chart(weekdayCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+                    datasets: [{
+                        label: 'Presentations Created',
+                        data: {{ days_data|tojson }},
+                        backgroundColor: [
+                            'rgba(245, 158, 11, 0.7)',
+                            'rgba(14, 165, 233, 0.7)',
+                            'rgba(139, 92, 246, 0.7)',
+                            'rgba(16, 185, 129, 0.7)',
+                            'rgba(239, 68, 68, 0.7)',
+                            'rgba(168, 85, 247, 0.7)',
+                            'rgba(234, 88, 12, 0.7)'
+                        ],
+                        borderWidth: 0,
+                        borderRadius: 5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Activity by Day of Week',
+                            font: {
+                                size: 16
+                            }
+                        },
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Template Usage Chart
+            const templateCtx = document.getElementById('templateUsageChart').getContext('2d');
+            new Chart(templateCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys({{ template_usage|tojson }}),
+                    datasets: [{
+                        label: 'Template Usage',
+                        data: Object.values({{ template_usage|tojson }}),
+                        backgroundColor: [
+                            'rgba(59, 130, 246, 0.7)',
+                            'rgba(139, 92, 246, 0.7)',
+                            'rgba(16, 185, 129, 0.7)',
+                            'rgba(245, 158, 11, 0.7)',
+                            'rgba(239, 68, 68, 0.7)',
+                            'rgba(234, 88, 12, 0.7)',
+                            'rgba(168, 85, 247, 0.7)',
+                            'rgba(6, 182, 212, 0.7)',
+                            'rgba(132, 204, 22, 0.7)',
+                            'rgba(249, 115, 22, 0.7)',
+                            'rgba(236, 72, 153, 0.7)',
+                            'rgba(75, 85, 99, 0.7)'
+                        ],
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Template Preferences',
+                            font: {
+                                size: 16
+                            }
+                        },
+                        legend: {
+                            position: 'right'
+                        }
+                    }
+                }
+            });
+            
+            // Layout Usage Chart
+            const layoutCtx = document.getElementById('layoutUsageChart').getContext('2d');
+            new Chart(layoutCtx, {
+                type: 'polarArea',
+                data: {
+                    labels: Object.keys({{ layout_usage|tojson }}),
+                    datasets: [{
+                        label: 'Layout Usage',
+                        data: Object.values({{ layout_usage|tojson }}),
+                        backgroundColor: [
+                            'rgba(59, 130, 246, 0.7)',
+                            'rgba(139, 92, 246, 0.7)',
+                            'rgba(16, 185, 129, 0.7)',
+                            'rgba(245, 158, 11, 0.7)',
+                            'rgba(239, 68, 68, 0.7)',
+                            'rgba(234, 88, 12, 0.7)',
+                            'rgba(168, 85, 247, 0.7)',
+                            'rgba(6, 182, 212, 0.7)',
+                            'rgba(132, 204, 22, 0.7)',
+                            'rgba(249, 115, 22, 0.7)',
+                            'rgba(236, 72, 153, 0.7)',
+                            'rgba(75, 85, 99, 0.7)'
+                        ],
+                        borderWidth: 1,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Slide Layout Distribution',
+                            font: {
+                                size: 16
+                            }
+                        },
+                        legend: {
+                            position: 'right'
+                        }
+                    }
+                }
+            });
+            
+            {% if top_edited %}
+            // Edit Frequency Chart
+            const editCtx = document.getElementById('editFrequencyChart').getContext('2d');
+            new Chart(editCtx, {
+                type: 'bar',
+                data: {
+                    labels: {{ top_edited|map(attribute='topic')|list|tojson }},
+                    datasets: [{
+                        label: 'Edit Frequency',
+                        data: {{ top_edited|map(attribute='edits_per_hour')|list|tojson }},
+                        backgroundColor: 'rgba(139, 92, 246, 0.7)',
+                        borderWidth: 0,
+                        borderRadius: 5
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Most Actively Edited Presentations',
+                            font: {
+                                size: 16
+                            }
+                        },
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let value = context.raw.toFixed(2);
+                                    return `Edit intensity: ${value}`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            {% endif %}
+        });
+    </script>
+</body>
+</html>

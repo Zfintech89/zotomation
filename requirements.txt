@@ -1,0 +1,40 @@
+flask
+sqlalchemy
+pytz
+requests
+pywebview
+python-pptx
+# Add these to your existing requirements.txt
+
+# Document Processing
+PyMuPDF>=1.23.0          # PDF text extraction
+python-docx>=0.8.11      # DOCX document processing
+python-doc>=0.3.0        # DOC document processing (optional)
+
+# Text Processing
+nltk>=3.8                # Natural language processing
+spacy>=3.4.0             # Advanced NLP (optional)
+
+# File Handling
+werkzeug>=2.0.0          # Secure filename handling
+python-magic>=0.4.27     # MIME type detection
+
+# Enhanced Security
+bleach>=6.0.0            # HTML sanitization
+validators>=0.20.0       # Input validation
+
+# Performance
+chardet>=5.0.0           # Character encoding detection
+textstat>=0.7.0          # Text statistics and readability
+
+# Optional: For advanced document formats
+openpyxl>=3.0.10         # Excel files
+beautifulsoup4>=4.11.0   # HTML parsing
+markdown>=3.4.0          # Markdown processing
+
+# Existing dependencies (keep these)
+Flask>=2.3.0
+SQLAlchemy>=2.0.0
+python-pptx>=0.6.21
+requests>=2.31.0
+ollama>=0.1.0

@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - PowerPoint Generator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/all.min.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-wrapper">
+            <div class="auth-left">
+                <div class="auth-brand">
+                    <i class="fas fa-file-powerpoint brand-icon"></i>
+                    <h2>SlideWay AI</h2>
+                </div>
+                <div class="auth-features">
+                    <h3>Create stunning presentations in minutes</h3>
+                    <ul class="features-list">
+                        <li><i class="fas fa-check-circle"></i> AI-powered content generation</li>
+                        <li><i class="fas fa-check-circle"></i> Professional template selection</li>
+                        <li><i class="fas fa-check-circle"></i> Easy export to PowerPoint format</li>
+                        <li><i class="fas fa-check-circle"></i> Customizable designs and layouts</li>
+                    </ul>
+                </div>
+                
+            </div>
+            
+            <div class="auth-card">
+                <div class="auth-header">
+                    <h1>Welcome back</h1>
+                    <p>Sign in to your PowerPoint Generator account</p>
+                </div>
+                
+                {% with messages = get_flashed_messages() %}
+                    {% if messages %}
+                        <div class="flash-messages">
+                            {% for message in messages %}
+                                <div class="flash-message"><i class="fas fa-exclamation-circle"></i> {{ message }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                {% endwith %}
+                
+                <form id="loginForm" class="auth-form" action="{{ url_for('auth.login') }}" method="POST">
+                    <div class="form-group">
+                        <label for="username">Username</label>
+                        <div class="input-with-icon">
+                            <i class="fas fa-user"></i>
+                            <input type="text" id="username" name="username" placeholder="Enter your username" required>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <div class="input-with-icon">
+                            <i class="fas fa-lock"></i>
+                            <input type="password" id="password" name="password" placeholder="Enter your password" required>
+                        </div>
+                    </div>
+                    
+                    
+                    
+                    <button type="submit" id="loginButton" class="auth-button">
+                        <span>Sign In</span>
+                        <i class="fas fa-arrow-right"></i>
+                    </button>
+                </form>
+                
+                
+                
+                <div class="auth-footer">
+                    <p>Don't have an account? <a href="{{ url_for('auth.register') }}">Sign Up</a></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Overlay for Model Setup -->
+    <div id="modelSetupModal" class="modal-overlay">
+        <div class="model-setup-modal">
+            <div class="model-setup-header">
+                <h2><i class="fas fa-robot"></i> Model Setup Required</h2>
+                <p>PowerPoint Generator needs to download required models to function</p>
+            </div>
+
+            <div class="models-container">
+                <div class="model-download-container" id="languageModel">
+                    <div class="model-info">
+                        <i class="fas fa-brain"></i>
+                        <span class="model-name">Intelligence Model</span>
+                        <span class="model-size">~4.6GB</span>
+                    </div>
+                    <div class="progress-container">
+                        <div class="progress-bar" id="languageProgressBar"></div>
+                    </div>
+                    <div class="model-status" id="languageStatus">Ready to download</div>
+                    <button id="startDownloadBtn" class="download-btn">
+                        <i class="fas fa-download"></i> Download
+                    </button>
+                </div>
+            </div>
+
+            <button id="setupCompleteBtn" class="setup-complete-btn">Continue to Login</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // Elements
+            const modelSetupModal = document.getElementById('modelSetupModal');
+            const startDownloadBtn = document.getElementById('startDownloadBtn');
+            const setupCompleteBtn = document.getElementById('setupCompleteBtn');
+            const loginForm = document.getElementById('loginForm');
+            const loginButton = document.getElementById('loginButton');
+
+            // Progress bar
+            const languageProgressBar = document.getElementById('languageProgressBar');
+            
+            // Status message
+            const languageStatus = document.getElementById('languageStatus');
+            
+            // Model download status tracking
+            let modelReady = false;
+            
+            // Check model status when page loads
+            checkModelStatus();
+            
+            // Function to check model status
+            function checkModelStatus() {
+                fetch('/api/model/status')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === "completed" || data.completed) {
+                            languageProgressBar.style.width = '100%';
+                            languageStatus.textContent = 'Model ready';
+                            startDownloadBtn.textContent = 'Completed';
+                            startDownloadBtn.disabled = true;
+                            modelReady = true;
+                            setupCompleteBtn.style.display = 'block';
+                            
+                            // Enable login form
+                            enableLoginForm();
+                        } else if (data.status === "downloading") {
+                            // Model download in progress
+                            languageProgressBar.style.width = `${data.progress}%`;
+                            languageStatus.textContent = `Downloading... ${data.downloaded}MB / ${data.total_size}MB`;
+                            startDownloadBtn.textContent = 'Downloading...';
+                            startDownloadBtn.disabled = true;
+                            
+                            // Start polling progress
+                            pollDownloadProgress();
+                            
+                            // Show modal
+                            modelSetupModal.classList.add('active');
+                            
+                            // Disable login form
+                            disableLoginForm();
+                        } else {
+                            // Model not downloaded and not downloading
+                            // Show modal
+                            modelSetupModal.classList.add('active');
+                            
+                            // Disable login form
+                            disableLoginForm();
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error checking model status:', error);
+                        modelSetupModal.classList.add('active');
+                        disableLoginForm();
+                    });
+            }
+            
+            // Function to poll download progress
+            function pollDownloadProgress() {
+                const progressInterval = setInterval(() => {
+                    fetch('/api/model/status')
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === "downloading") {
+                                const progress = data.progress;
+                                languageProgressBar.style.width = `${progress}%`;
+                                
+                                let statusText = `Downloading... ${progress}%`;
+                                if (data.downloaded && data.total_size) {
+                                    statusText = `Downloading... ${data.downloaded}MB / ${data.total_size}MB`;
+                                }
+                                if (data.speed) {
+                                    statusText += ` at ${data.speed} MB/s`;
+                                }
+                                if (data.eta && data.eta !== "--") {
+                                    statusText += ` (ETA: ${data.eta})`;
+                                }
+                                
+                                languageStatus.textContent = statusText;
+                            } else if (data.status === "completed" || data.completed) {
+                                clearInterval(progressInterval);
+                                languageProgressBar.style.width = '100%';
+                                languageStatus.textContent = 'Model ready';
+                                startDownloadBtn.innerHTML = '<i class="fas fa-check"></i> Completed';
+                                startDownloadBtn.disabled = true;
+                                modelReady = true;
+                                setupCompleteBtn.style.display = 'block';
+                                
+                                // Enable login form
+                                enableLoginForm();
+                            } else if (data.status === "error") {
+                                clearInterval(progressInterval);
+                                languageStatus.textContent = data.error || 'Download failed';
+                                startDownloadBtn.innerHTML = '<i class="fas fa-redo"></i> Try Again';
+                                startDownloadBtn.disabled = false;
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error checking download progress:', error);
+                        });
+                }, 1000);
+            }
+            
+            // Start download button click handler
+            startDownloadBtn.addEventListener('click', function() {
+                startDownload();
+            });
+            
+            // Setup complete button click handler
+            setupCompleteBtn.addEventListener('click', function() {
+                modelSetupModal.classList.remove('active');
+            });
+            
+            // Function to start model download
+            function startDownload() {
+                // Update button state
+                startDownloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...';
+                startDownloadBtn.disabled = true;
+                languageStatus.textContent = 'Starting download...';
+                
+                // Call API to start download
+                fetch('/api/model/start-download', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Start polling for progress
+                        pollDownloadProgress();
+                    } else {
+                        languageStatus.textContent = data.message || 'Failed to start download';
+                        startDownloadBtn.innerHTML = '<i class="fas fa-redo"></i> Try Again';
+                        startDownloadBtn.disabled = false;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error starting download:', error);
+                    languageStatus.textContent = 'Network error';
+                    startDownloadBtn.innerHTML = '<i class="fas fa-redo"></i> Try Again';
+                    startDownloadBtn.disabled = false;
+                });
+            }
+            
+            // Function to enable login form
+            function enableLoginForm() {
+                loginButton.disabled = false;
+                loginForm.classList.remove('disabled');
+            }
+            
+            // Function to disable login form
+            function disableLoginForm() {
+                loginButton.disabled = true;
+                loginForm.classList.add('disabled');
+            }
+        });
+    </script>
+</body>
+</html>
