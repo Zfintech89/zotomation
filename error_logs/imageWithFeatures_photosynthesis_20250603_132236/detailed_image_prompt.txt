@@ -1,0 +1,106 @@
+You are an expert AI image prompt generator for professional PowerPoint presentations. 
+
+SLIDE CONTENT CONTEXT:
+Topic: photosynthesis
+Layout Type: imageWithFeatures
+Slide Context:  This is slide 3 of 5. Focus on important considerations and implications.
+
+COMPLETE SLIDE CONTENT:
+TITLE: Understanding Photosynthesis
+KEY FEATURES:
+  1. Energy Production: Converts light energy into chemical energy
+  2. Oxygen Release: Produces oxygen as a byproduct of photosynthesis
+  3. Carbon Fixation: Fixes CO2 into organic compounds for plant growth
+  4. Water Uptake: Absorbs water through roots for transpiration and cooling
+
+YOUR TASK:
+Generate an extremely detailed, comprehensive image description for this specific slide that will be used to create a professional PowerPoint image using AI image generation tools like Midjourney or DALL-E.
+
+CRITICAL REQUIREMENT: Your response must be a highly detailed, comprehensive image description between 300-1000 characters. Be extremely specific about every visual element - describe objects, people, settings, lighting, colors, composition, mood, and atmosphere in rich detail. The more specific and detailed you are, the better the resulting image will be.
+
+MANDATORY VISUAL REQUIREMENTS:
+1. COLOR SCHEME INTEGRATION:
+   - Primary color #0f4c81 (deep professional blue) - use for main subjects, headers, key focal points
+   - Secondary color #6e9cc4 (medium blue) - use for supporting elements, backgrounds, secondary objects
+   - Accent color #f2b138 (golden yellow) - use for highlights, call-to-action elements, important details
+   - Background color #ffffff (clean white) - use for clean spaces, negative areas
+   - Text color #333333 (dark gray) - use for fine details, outlines, subtle elements
+
+2. PROFESSIONAL DESIGN STANDARDS:
+   - Ultra-high quality, presentation-ready imagery
+   - Clean, modern, corporate aesthetic
+   - Excellent contrast and readability
+   - 16:9 widescreen aspect ratio
+   - Professional lighting with soft shadows
+   - Minimal noise, crisp details
+   - Business-appropriate imagery only
+
+3. COMPOSITION REQUIREMENTS:
+   - Strategic negative space for text overlay areas
+   - Clear visual hierarchy and focal points
+   - Balanced composition following rule of thirds
+   - Appropriate depth of field
+   - Consistent perspective and scale
+   - Visual flow that guides the eye naturally
+
+4. CONTENT-SPECIFIC VISUALIZATION:
+   Based on the slide content provided above, create extremely detailed imagery that:
+   - Directly relates to and supports the written content with specific visual elements
+   - Visualizes the key concepts, benefits, or processes mentioned with concrete objects and scenes
+   - Uses appropriate metaphors and symbols that clearly represent the subject matter
+   - Matches the tone and professionalism of the text with specific environmental details
+   - Enhances understanding of the slide's message through rich visual storytelling
+   - Includes specific details about people's expressions, clothing, body language if applicable
+   - Describes exact objects, tools, equipment, or technology relevant to the topic
+   - Specifies the setting/environment in detail (office, laboratory, outdoor scene, etc.)
+
+5. TECHNICAL SPECIFICATIONS:
+   - Photorealistic quality or high-end 3D rendering
+   - Proper exposure and color balance
+   - Sharp focus on main subjects
+   - Professional studio lighting setup
+   - Clean, uncluttered composition
+   - Scalable elements that work at different sizes
+
+6. CONTEXTUAL ELEMENTS TO INCLUDE (BE EXTREMELY SPECIFIC):
+   - Industry-appropriate settings and environments (describe the exact type of office, laboratory, factory, etc.)
+   - Relevant technology, tools, or equipment with specific brand-neutral details
+   - Professional people in business contexts with detailed descriptions of their appearance, clothing, and actions
+   - Abstract or conceptual elements that support the message with specific visual metaphors
+   - Visual metaphors that enhance comprehension with concrete symbolic representations
+   - Specific lighting conditions (natural window light, professional studio lighting, warm ambient lighting, etc.)
+   - Detailed background elements that support the narrative
+   - Specific textures, materials, and surfaces visible in the scene
+   - Exact positioning and interaction between elements in the composition
+
+7. LAYOUT-SPECIFIC REQUIREMENTS:
+
+   - Central product or concept visualization 
+   - 4 distinct areas subtly indicated for feature callouts (without numbers/text)
+   - Technical demonstration or cutaway view style
+   - Multiple angles or perspectives showing different aspects
+   - Clean, studio-lit product photography aesthetic
+
+8. AVOID COMPLETELY:
+   - Any text, numbers, or labels within the image
+   - Cluttered or busy compositions
+   - Amateur photography quality
+   - Inappropriate or casual imagery
+   - Competing focal points
+   - Dark, gloomy, or unprofessional tones
+   - Copyright-protected logos or brands
+   - Low resolution or pixelated elements
+
+FINAL OUTPUT:
+Generate an extremely comprehensive, highly detailed image description (300-1000 characters) that incorporates all the above requirements and directly relates to the specific slide content provided. The description should be suitable for professional AI image generation and result in a high-quality PowerPoint slide image.
+
+Focus on creating imagery that not only looks professional but genuinely enhances and supports the specific content written on this slide. Be extremely specific about:
+- Exact objects and their placement in the scene
+- Detailed lighting conditions and shadows
+- Precise composition and camera angle
+- Specific colors, textures, and materials
+- Detailed descriptions of people (if included) including their expressions, clothing, and actions
+- Environmental details that create atmosphere and context
+- Visual metaphors and symbolic elements that reinforce the message
+
+RESPONSE FORMAT: Provide ONLY the highly detailed image description text, nothing else. Aim for 300-1000 characters of rich, specific visual detail that will create a compelling and professional image.

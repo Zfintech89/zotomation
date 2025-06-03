@@ -1,0 +1,28 @@
+{
+  "title": "Recent Photosynthesis Breakthroughs",
+  "events": [
+    {
+      "year": "2015",
+      "title": "CRISPR-Cas9 Used to Improve Photosynthesis",
+      "description": "Scientists used gene editing tool CRISPR-Cas9 to enhance photosynthetic efficiency in plants"
+    },
+    {
+      "year": "2020",
+      "title": "Artificial Photosynthesis Milestone",
+      "description": "Researchers achieved artificial photosynthesis, converting sunlight into chemical energy with 10% efficiency"
+    },
+    {
+      "year": "2022",
+      "title": "Plant Gene Editing Advances",
+      "description": "Scientists used CRISPR-Cas9 to edit plant genes, increasing photosynthetic rates and crop yields by up to 25%"
+    },
+    {
+      "year": "Present",
+      "title": "Current Research Focus",
+      "description": "Ongoing efforts to improve photosynthesis efficiency, enhance crop resilience, and develop sustainable bioenergy solutions"
+    }
+  ],
+  "slide_index": 2,
+  "total_slides": 5,
+  "topic": "photosynthesis"
+}

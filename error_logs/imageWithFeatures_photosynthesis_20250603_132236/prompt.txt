@@ -1,0 +1,20 @@
+Create a slide about 'photosynthesis' with image and 4 features. This is slide 3 of 5. Focus on important considerations and implications.
+
+        STRICTLY FOLLOW CHARACTER LIMITS (count every character including spaces):
+        - 'title': Maximum 80 characters
+        - 'imageDescription': Maximum 1000 characters
+        - Each feature 'title': Maximum 40 characters
+        - Each feature 'description': Maximum 50 characters
+
+        TITLE GUIDELINES:
+        - Create a specific, action-oriented title
+        - Avoid generic words like "Key Features" or "Main Points"
+
+        Format as JSON with ONLY these fields:
+        - "title": Specific title (under 80 chars)
+        - "imageDescription": Image description (under 1000 chars)
+        - "features": Array of exactly 4 objects, each with:
+        - "title": Feature name (under 40 chars)
+        - "description": Feature description (under 50 chars)
+
+        Example: {"title": "Combating Gender Discrimination", "imageDescription": "Diverse workplace with equal representation", "features": [{"title": "Policy Development", "description": "Implement clear anti-discrimination policies and procedures"}, {"title": "Training Programs", "description": "Conduct regular bias awareness and inclusion training"}, {"title": "Pay Equity", "description": "Regular salary audits to ensure equal pay practices"}, {"title": "Reporting Systems", "description": "Safe channels for reporting discrimination incidents"}]}

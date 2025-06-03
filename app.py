@@ -1,5 +1,4 @@
 from flask import Flask, request, jsonify, render_template, send_file, session, redirect, url_for
-# from ollama_client import generate_content
 from models import db, User, Presentation as PresentationModel, Slide
 from auth import auth_bp, login_required
 from pptx_export import export_pptx_local, hex_to_rgb, parse_template_colors, apply_template_to_slide, apply_text_formatting, clean_text_content
@@ -7,8 +6,8 @@ from text_extraction_utils import process_uploaded_file, analyze_text_content, c
 import model_downloader
 from ollama_client import (
     generate_content, 
-    process_document_with_ollama,
-    generate_slides_from_ollama_analysis
+    split_text_for_slides,
+    generate_content_from_extracted_text
 )
 from content_utils import process_content_for_layout
 import re
@@ -42,7 +41,6 @@ logging.basicConfig(
         logging.StreamHandler()
     ]
 )
-# Add this constant near the top of app.py after imports
 DEFAULT_DOCUMENT_MODE = 'preserve'  # Default mode for document processing
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev_key_change_in_production')
@@ -780,7 +778,7 @@ def generate_fallback_slide_structure(slide_count, topic):
     
     return structure
 
-from ollama_client import extract_clean_json, generate_content, generate_content_from_text, analyze_document_structure
+from ollama_client import extract_clean_json, generate_content, generate_content_from_text
 
 def generate_intelligent_slide_structure_fixed(slide_count, doc_structure):
     """Generate slide structure with better content distribution"""
@@ -843,7 +841,7 @@ def generate_intelligent_slide_structure_fixed(slide_count, doc_structure):
     logging.info(f"Final structure: {len(structure)} slides")
     return structure, actual_slide_count
 
-# Updated route in app.py
+
 
 @app.route('/api/generate-from-content', methods=['POST'])
 def generate_from_content():
@@ -1102,7 +1100,6 @@ def process_document():
         logging.error(f"Error processing document: {e}")
         return jsonify({'error': f'Document processing failed: {str(e)}'}), 500
 
-# Update process-text route similarly
 @app.route('/api/process-text', methods=['POST'])
 def process_text_content():
     """Process pasted text content for presentation generation"""
@@ -1148,194 +1145,6 @@ def process_text_content():
     except Exception as e:
         logging.error(f"Error processing text content: {e}")
         return jsonify({'error': f'Text processing failed: {str(e)}'}), 500
-
-def preprocess_text_for_slides(text, num_sections):
-    """
-    Splits text into num_sections and assigns each section a layout.
-    """
-    section_texts = split_text_for_slides(text, num_sections)
-
-    # Layouts excluding titleOnly and conclusion, which will be manually handled
-    content_layouts = [
-        "titleAndBullets", "quote", "imageAndParagraph", "twoColumn",
-        "imageWithFeatures", "numberedFeatures", "benefitsGrid", "iconGrid",
-        "sideBySideComparison", "timeline"
-    ]
-
-    sections = []
-    for i, sec in enumerate(section_texts):
-        if i == 0:
-            layout = "titleOnly"
-            role = "titleOnly"
-        elif i == len(section_texts) - 1:
-            layout = "conclusion"
-            role = "conclusion"
-        else:
-            layout = content_layouts[(i - 1) % len(content_layouts)]
-            role = "content"
-
-        sections.append({
-            "role": role,
-            "layout": layout,
-            "text": sec
-        })
-
-    return sections
-
-    try:
-        data = request.json
-        content_data = data.get('content')
-        template_id = data.get('template')
-        slide_count = data.get('slideCount', 5)
-        topic = data.get('topic', 'Presentation')
-        
-        if not content_data:
-            return jsonify({'error': 'No content data provided'}), 400
-        
-        if not template_id:
-            return jsonify({'error': 'No template selected'}), 400
-        
-        # Extract the full text
-        full_text = content_data.get('full_text', '')
-        chunks = content_data.get('chunks', [])
-        processing_method = content_data.get('processing_method', 'unknown')
-        
-        if not full_text:
-            return jsonify({'error': 'No text content found'}), 400
-        
-        logging.info(f"Generating from content: {len(full_text)} chars, {len(chunks)} chunks")
-        
-        # Generate slides using the enhanced method
-        slides = generate_slides_from_extracted_content(full_text, topic, template_id, slide_count)
-        
-        return jsonify({
-            'slides': slides,
-            'template': template_id,
-            'processing_method': processing_method,
-            'content_stats': content_data.get('analysis', {})
-        })
-        
-    except Exception as e:
-        logging.error(f"Error generating from content: {e}")
-        return jsonify({'error': f'Generation failed: {str(e)}'}), 500
-    
-def generate_slides_from_extracted_content(full_text, topic, template_id, slide_count):
-    """Generate slides from extracted content with proper layout distribution"""
-    slides = []
-    
-    # Always start with title slide
-    if slide_count >= 1:
-        title_content = generate_content('titleOnly', topic, slide_index=1, total_slides=slide_count)
-        title_content['topic'] = topic
-        processed_title_content = process_content_for_layout(title_content, 'titleOnly')
-        
-        # Ensure title content has required fields
-        if 'title' not in processed_title_content or not processed_title_content['title']:
-            processed_title_content['title'] = topic.capitalize()
-        if 'subtitle' not in processed_title_content or not processed_title_content['subtitle']:
-            processed_title_content['subtitle'] = "Generated from Document"
-        
-        slides.append({
-            'layout': 'titleOnly',
-            'content': processed_title_content
-        })
-    
-    # Handle different slide counts
-    if slide_count == 1:
-        return slides
-    elif slide_count == 2:
-        # Add conclusion slide
-        conclusion_content = generate_content_from_extracted_text('conclusion', topic, full_text, 2, 2)
-        slides.append({
-            'layout': 'conclusion', 
-            'content': conclusion_content
-        })
-        return slides
-    
-    # For 3+ slides: title + content slides + conclusion
-    content_slides_needed = slide_count - 2
-    
-    # Available content layouts
-    available_layouts = [
-        "titleAndBullets", "imageAndParagraph", "twoColumn",
-        "imageWithFeatures", "numberedFeatures", "benefitsGrid", 
-        "iconGrid", "sideBySideComparison", "timeline"
-    ]
-    
-    # Split text into sections for content slides
-    text_sections = split_text_for_slides(full_text, content_slides_needed)
-    
-    for i in range(content_slides_needed):
-        slide_position = i + 2
-        layout = available_layouts[i % len(available_layouts)]
-        
-        # Use section-specific text if available
-        section_text = text_sections[i] if i < len(text_sections) else full_text
-        
-        content = generate_content_from_extracted_text(layout, topic, section_text, slide_position, slide_count)
-        
-        slides.append({
-            'layout': layout,
-            'content': content
-        })
-    
-    # Add conclusion slide
-    if slide_count >= 3:
-        conclusion_content = generate_content_from_extracted_text('conclusion', topic, full_text, slide_count, slide_count)
-        slides.append({
-            'layout': 'conclusion',
-            'content': conclusion_content
-        })
-    
-    return slides
-
-def split_text_for_slides(full_text, num_sections):
-    """Split text into sections for slides"""
-    if not full_text:
-        return [""] * num_sections
-    
-    paragraphs = [p.strip() for p in full_text.split('\n\n') if p.strip()]
-    
-    if len(paragraphs) <= num_sections:
-        # Pad with empty strings if needed
-        return paragraphs + [""] * (num_sections - len(paragraphs))
-    
-    # Distribute paragraphs across sections
-    sections = []
-    paras_per_section = len(paragraphs) // num_sections
-    remainder = len(paragraphs) % num_sections
-    
-    start = 0
-    for i in range(num_sections):
-        section_size = paras_per_section + (1 if i < remainder else 0)
-        end = start + section_size
-        
-        section_paras = paragraphs[start:end]
-        sections.append('\n\n'.join(section_paras))
-        
-        start = end
-    
-    return sections
-
-def generate_content_from_extracted_text(layout, topic, source_text, slide_index, total_slides):
-    """Generate content from extracted text for specific layout"""
-    if not source_text:
-        # Fallback to regular generation
-        content = generate_content(layout, topic, slide_index, total_slides)
-        content['topic'] = topic  # Add topic for processing
-        return process_content_for_layout(content, layout)
-    
-    try:
-        # Use the function from ollama_client directly
-        from ollama_client import generate_content_from_text
-        content = generate_content_from_text(layout, topic, source_text, slide_index, total_slides)
-        return content
-    except Exception as e:
-        logging.error(f"Error generating content from extracted text: {e}")
-        # Fallback to regular generation
-        content = generate_content(layout, topic, slide_index, total_slides)
-        content['topic'] = topic  # Add topic for processing
-        return process_content_for_layout(content, layout)
 
 @app.route('/api/generate', methods=['POST'])
 @login_required
@@ -1441,7 +1250,6 @@ def generate():
             'content': processed_content
         })
     
-    # Always end with conclusion slide
     conclusion_content = generate_content('conclusion', topic, slide_index=slide_count, total_slides=slide_count)
     conclusion_content['topic'] = topic
     processed_conclusion_content = process_content_for_layout(conclusion_content, 'conclusion')
@@ -1458,10 +1266,6 @@ def generate():
         'slides': slides,
         'template': template
     })
-
-
-def is_section_break(paragraph):
-    return len(paragraph) < 100 and (paragraph.isupper() or paragraph.startswith(('Section', 'Chapter', 'Part')))
 
 with app.app_context():
     db.create_all()

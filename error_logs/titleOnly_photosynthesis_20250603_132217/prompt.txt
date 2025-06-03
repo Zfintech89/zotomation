@@ -1,0 +1,17 @@
+Create a compelling title slide about 'photosynthesis'. This is slide 1 of 5. Focus on introduction and overview.
+        
+        STRICTLY FOLLOW CHARACTER LIMITS (count every character including spaces):
+        - 'title': Maximum 60 characters
+        - 'subtitle': Maximum 120 characters
+        
+        TITLE GUIDELINES:
+        - Create a clean, professional title without prefixes like "Introduction to" or slide numbers
+        - Make it engaging and directly related to the topic
+        - Avoid generic words like "Overview", "Examples", "Statistics" at the beginning
+        
+        
+        Format as JSON with ONLY these keys:
+        - 'title': A compelling main title (under 60 chars)
+        - 'subtitle': A descriptive subtitle (under 120 chars)
+        
+        Example: {"title": "Gender Discrimination", "subtitle": "Understanding Workplace Inequality and Solutions"}

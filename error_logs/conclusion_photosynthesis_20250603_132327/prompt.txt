@@ -1,0 +1,17 @@
+Create a conclusion slide about 'photosynthesis'. This is slide 5 of 5. Focus on conclusions and next steps.
+        
+        STRICTLY FOLLOW CHARACTER LIMITS (count every character including spaces):
+        - 'title': Maximum 60 characters
+        - 'summary': Maximum 100 characters
+        - Each next step: Maximum 50 characters
+        
+        TITLE GUIDELINES:
+        - Create a forward-looking conclusion title
+        - Avoid generic "Key Takeaways" or "Conclusion"
+        
+        Format as JSON with ONLY these fields:
+        - 'title': Conclusion title (under 60 chars)
+        - 'summary': Brief summary (under 100 chars)
+        - 'nextSteps': Array of 2-3 action items (each under 50 chars)
+        
+        Example: {"title": "Building Equality Together", "summary": "Addressing gender discrimination requires commitment from individuals, organizations, and society to create truly inclusive environments where everyone can thrive.", "nextSteps": ["Assess current policies for bias and discrimination", "Implement bias training and inclusive hiring practices", "Track progress with regular diversity and inclusion metrics"]}

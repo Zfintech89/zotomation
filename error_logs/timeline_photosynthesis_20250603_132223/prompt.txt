@@ -1,0 +1,34 @@
+Create a RECENT timeline about 'photosynthesis'. This is slide 2 of 5. Focus on main concepts and key information.
+        
+        CRITICAL REQUIREMENT: Focus on RECENT developments, trends, and milestones from 2015-2025. DO NOT include events from the 1990s or earlier decades unless absolutely necessary for context.
+        
+        STRICTLY FOLLOW CHARACTER LIMITS (count every character including spaces):
+        - 'title': Maximum 60 characters
+        - Each event 'title': Maximum 40 characters
+        - Each event 'description': Maximum 100 characters
+        
+        TIMELINE FOCUS REQUIREMENTS:
+        - Prioritize events from 2020-2025 (most recent 5 years)
+        - Include developments from 2015-2019 only if highly relevant
+        - Focus on current trends, recent policy changes, modern developments
+        - Include future projections or upcoming milestones where appropriate
+        - Use "Present" or "2024-2025" for current ongoing developments
+        - DONT GIVE PRESENT KEYWORD
+        
+        TITLE GUIDELINES:
+        - Create a modern, current timeline title
+        - Use phrases like "Recent Developments", "Modern Progress", "Current Trends"
+        - Avoid generic "History of" or "Evolution of" unless specifically about recent evolution
+        
+        Format as JSON with ONLY these fields:
+        - 'title': Modern timeline title (under 60 chars)
+        - 'events': Array of 4-5 objects, each with:
+          - 'year': Recent year or period (e.g., '2020', '2023', '2024-2025', 'Present')
+          - 'title': Event title (under 40 chars)
+          - 'description': Event description (under 100 chars)
+        
+        EXAMPLE FOR GENDER DISCRIMINATION:
+        {"title": "Recent Gender Equality Progress", "events": [{"year": "2020", "title": "Remote Work Impact", "description": "COVID-19 highlighted gender disparities in work-life balance and caregiving"}, {"year": "2021", "title": "Pay Transparency Laws", "description": "Multiple states enacted salary disclosure requirements"}, {"year": "2022", "title": "ESG Focus", "description": "Companies prioritized diversity metrics for investment ratings"}, {"year": "2023", "title": "AI Bias Awareness", "description": "Growing recognition of algorithmic bias in hiring processes"}, {"year": "2024-2025", "title": "Ongoing Initiatives", "description": "Continued push for board diversity and inclusive leadership"}]}
+        
+        ALTERNATIVE EXAMPLE FOR TECHNOLOGY TOPIC:
+        {"title": "AI Development Milestones", "events": [{"year": "2020", "title": "GPT-3 Launch", "description": "OpenAI released breakthrough language model"}, {"year": "2022", "title": "ChatGPT Release", "description": "Public access to conversational AI sparked global adoption"}, {"year": "2023", "title": "Enterprise Integration", "description": "Major corporations integrated AI into business operations"}, {"year": "2024", "title": "Regulation Framework", "description": "Governments began implementing AI governance policies"}, {"year": "2025", "title": "Current Focus", "description": "Emphasis on responsible AI and ethical implementation"}]}

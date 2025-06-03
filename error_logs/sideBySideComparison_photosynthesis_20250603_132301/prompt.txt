@@ -1,0 +1,20 @@
+Create a comparison slide about 'photosynthesis'. This is slide 4 of 5. Focus on real-world applications and case studies.
+        
+        STRICTLY FOLLOW CHARACTER LIMITS (count every character including spaces):
+        - 'title': Maximum 80 characters
+        - 'leftTitle': Maximum 40 characters
+        - 'rightTitle': Maximum 40 characters
+        - Each point: Maximum 120 characters
+        
+        TITLE GUIDELINES:
+        - Create a balanced comparison title
+        - Focus on the contrast being shown
+        
+        Format as JSON with ONLY these fields:
+        - 'title': Comparison title (under 80 chars)
+        - 'leftTitle': Left section title (under 40 chars)
+        - 'rightTitle': Right section title (under 40 chars)
+        - 'leftPoints': Array of exactly 3 points (each under 120 chars)
+        - 'rightPoints': Array of exactly 3 points (each under 120 chars)
+        
+        Example: {"title": "Gender Discrimination: Problems vs Solutions", "leftTitle": "Current Problems", "rightTitle": "Effective Solutions", "leftPoints": ["Persistent wage gaps across industries", "Limited representation in leadership roles", "Workplace harassment and bias"], "rightPoints": ["Transparent salary bands and regular audits", "Mentorship and leadership development programs", "Strong anti-harassment policies and training"]}

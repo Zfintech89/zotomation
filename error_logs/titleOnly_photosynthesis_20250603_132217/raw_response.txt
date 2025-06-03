@@ -1,0 +1,8 @@
+Here is the JSON object for the first slide on photosynthesis:
+
+```
+{
+  "title": "Photosynthesis Uncovered",
+  "subtitle": "The Science Behind Plant Life and Energy Production"
+}
+```
