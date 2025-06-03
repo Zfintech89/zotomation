@@ -580,7 +580,6 @@ def is_generic_content(content):
     if not isinstance(content, dict):
         return True
     
-    # Less strict for title and conclusion slides
     layout_context = content.get('_layout_hint', '')
     
     if layout_context in ['titleOnly', 'conclusion']:
@@ -607,10 +606,8 @@ def validate_content_quality(content, layout):
     if not isinstance(content, dict):
         return False
     
-    # Add layout hint for better validation
     content['_layout_hint'] = layout
     
-    # More lenient validation for title and conclusion
     if layout in ['titleOnly', 'conclusion']:
         if layout == 'titleOnly':
             return (content.get('title') and len(content.get('title', '')) > 3)
@@ -618,7 +615,6 @@ def validate_content_quality(content, layout):
             return (content.get('title') and len(content.get('title', '')) > 3 and
                    (content.get('summary') or content.get('nextSteps')))
     
-    # Stricter validation for content slides
     if layout == 'titleAndBullets':
         return (content.get('title') and len(content.get('title', '')) > 5 and
                 content.get('bullets') and len(content.get('bullets', [])) >= 2 and
@@ -635,13 +631,11 @@ def validate_content_quality(content, layout):
     
     return True
 
-# ALSO ADD this function to fix the structure generation
 def generate_structure_plan(slide_count, text, topic):
     """Generate slide structure plan - FIXED VERSION"""
     
     structure = []
     
-    # ALWAYS start with title slide
     structure.append({
         "slide_number": 1,
         "layout": "titleOnly",
@@ -649,11 +643,10 @@ def generate_structure_plan(slide_count, text, topic):
         "content_focus": f"Title and overview of {topic}"
     })
     
-    # Content slides (only if we have more than 2 slides total)
     content_slides_needed = max(0, slide_count - 2)  # Exclude title and conclusion
     
     if content_slides_needed > 0:
-        layouts = ["titleAndBullets", "imageAndParagraph", "twoColumn", "timeline", "imageWithFeatures"]
+        layouts = ["titleAndBullets", "quote", "imageAndParagraph", "twoColumn", "titleOnly", "imageWithFeatures", "numberedFeatures", "benefitsGrid", "iconGrid", "sideBySideComparison", "timeline", "conclusion"]
         
         for i in range(content_slides_needed):
             slide_num = i + 2  # Start from slide 2
@@ -1005,15 +998,21 @@ def clean_bullet_text(text):
     if not text:
         return ""
     
+    # Remove bullet markers and clean up
     text = re.sub(r'^[•\-*\d\.]\s*', '', text)
     text = text.strip()
     
+    # Ensure it ends with proper punctuation
     if text and not text.endswith(('.', '!', '?')):
         text += '.'
     
     return text
 
 
+debug_dir = "error_logs"
+os.makedirs(debug_dir, exist_ok=True)
+
+# Add these constants at the top of ollama_client.py
 CONTENT_PRESERVATION_MODES = {
     'preserve': {
         'instruction': 'Format the following text into the required structure while preserving the original wording as much as possible. Keep key phrases, statistics, and important details exactly as written.',

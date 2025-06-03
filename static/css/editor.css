@@ -265,7 +265,7 @@
     align-items: center;
     position: sticky;
     top: 0;
-    z-index: 10;
+    z-index: 1000;
 }
 /* Enhanced responsive preview container with hamburger menu solution */
 
@@ -424,13 +424,12 @@
     .hamburger-toggle {
         display: block;
     }
-    
-    .sidebar {
+      .sidebar {
         position: fixed;
         top: 72px;
         left: -22rem; /* Hidden by default */
         height: calc(100vh - 72px);
-        z-index: 1000;
+        z-index: 999;
         box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
         width: 22rem;
     }
@@ -500,13 +499,12 @@
     .hamburger-toggle {
         display: block;
     }
-    
-    .sidebar {
+      .sidebar {
         position: fixed;
         top: 72px;
         left: -18rem;
         height: calc(100vh - 72px);
-        z-index: 1000;
+        z-index: 999;
         box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
         width: 18rem;
     }
@@ -622,13 +620,12 @@
     .sidebar-overlay.show {
         display: block;
     }
-    
-    .right-sidebar {
+      .right-sidebar {
         position: fixed;
         top: 0;
         right: -15rem; /* Hidden by default */
         height: 100vh;
-        z-index: 1000;
+        z-index: 999;
         box-shadow: -2px 0 10px rgba(0, 0, 0, 0.1);
         transition: right 0.3s ease;
     }

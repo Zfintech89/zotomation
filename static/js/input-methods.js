@@ -290,9 +290,7 @@ class InputMethodsHandler {
         `;
 
         preview.classList.remove('hidden');
-    }
-
-    // Show processing mode selection as dropdown
+    }    // Show processing mode selection (always visible)
     showProcessingModeSelection() {
         const extractedTextContainer = document.getElementById('extracted-text-container');
         if (!extractedTextContainer) return;
@@ -302,33 +300,33 @@ class InputMethodsHandler {
 
         const processingDropdownHtml = `
             <div id="processing-mode-dropdown-container" class="processing-mode-dropdown-container">
-                <h4><i class=""></i> Content Processing Settings</h4>
-                            <div class="processing-mode-selection-wrapper">
-                    <div class="processing-mode-toggle-button toggle-icon" id="processing-mode-toggle-button">
-                      
-                        <span class="toggle-icon">▼</span>
-                    </div>
-                    <div class="processing-mode-panel" id="processing-mode-panel">
+                <h4><i class="fas fa-cogs"></i> Content Settings</h4>
+                <div class="processing-mode-selection-wrapper">
+                    <div class="processing-mode-panel" id="processing-mode-panel" style="display: block;">
                         <div class="processing-mode-grid" id="processing-mode-grid">
                             <div class="processing-mode-option selected" data-mode="preserve">
                                 <div class="mode-icon">🔒</div>
                                 <div class="mode-details">
                                     <span class="mode-title">Preserve Original</span>
+                                    <span class="mode-description">Keep original text as much as possible</span>
                                 </div>
                             </div>
                             <div class="processing-mode-option" data-mode="condense">
                                 <div class="mode-icon">📝</div>
                                 <div class="mode-details">
                                     <span class="mode-title">Condense Content</span>
+                                    <span class="mode-description">Summarize while maintaining key points</span>
                                 </div>
                             </div>
                             <div class="processing-mode-option" data-mode="generate">
                                 <div class="mode-icon">🎨</div>
                                 <div class="mode-details">
                                     <span class="mode-title">Generate Enhanced</span>
+                                    <span class="mode-description">Create enhanced AI-generated content</span>
                                 </div>
                             </div>
                         </div>
+                      
                     </div>
                 </div>
             </div>
@@ -337,35 +335,11 @@ class InputMethodsHandler {
         extractedTextContainer.innerHTML = processingDropdownHtml;
         extractedTextContainer.classList.remove('hidden');
 
-        // Set up dropdown functionality
-        this.setupProcessingModeDropdown();
-    }
-
-    // Setup processing mode dropdown
-    setupProcessingModeDropdown() {
-        const toggleButton = document.getElementById('processing-mode-toggle-button');
-        const panel = document.getElementById('processing-mode-panel');
+        // Set up selection functionality (without toggle)
+        this.setupProcessingModeSelection();
+    }    // Setup processing mode selection (without dropdown)
+    setupProcessingModeSelection() {
         const options = document.querySelectorAll('.processing-mode-option');
-        
-        // Hide panel initially
-        panel.style.display = 'none';
-        
-        // Toggle function
-        const togglePanel = () => {
-            const isVisible = panel.style.display !== 'none';
-            panel.style.display = isVisible ? 'none' : 'block';
-            
-            // Update toggle icon
-            const toggleIcon = document.querySelector('#processing-mode-dropdown-container .toggle-icon');
-            if (toggleIcon) {
-                toggleIcon.textContent = isVisible ? '▼' : '▲';
-            }
-        };
-        
-        // Add click event to toggle button
-        if (toggleButton) {
-            toggleButton.addEventListener('click', togglePanel);
-        }
         
         // Add click events to mode options
         options.forEach(option => {
@@ -381,44 +355,11 @@ class InputMethodsHandler {
                 // Update the processing mode
                 this.processingMode = mode;
                 
-                // Update the toggle button text
-                const modeTitle = option.querySelector('.mode-title').textContent;
-                const modeDesc = option.querySelector('.mode-description').textContent;
-                
-                const selectedName = document.getElementById('selected-processing-mode-name');
-                const selectedDesc = document.getElementById('selected-processing-mode-desc');
-                
-                if (selectedName) selectedName.textContent = `Processing Mode: ${modeTitle}`;
-                if (selectedDesc) selectedDesc.textContent = modeDesc;
-                
                 // Update info text
                 this.updateProcessingModeInfo(mode);
                 
-                // Close the panel after selection
-                panel.style.display = 'none';
-                
-                // Update toggle icon
-                const toggleIcon = document.querySelector('#processing-mode-dropdown-container .toggle-icon');
-                if (toggleIcon) {
-                    toggleIcon.textContent = '▼';
-                }
-                
                 console.log(`Processing mode changed to: ${mode}`);
             });
-        });
-        
-        // Close panel when clicking outside
-        document.addEventListener('click', (event) => {
-            const container = document.getElementById('processing-mode-dropdown-container');
-            if (container && !container.contains(event.target)) {
-                panel.style.display = 'none';
-                
-                // Update toggle icon
-                const toggleIcon = document.querySelector('#processing-mode-dropdown-container .toggle-icon');
-                if (toggleIcon) {
-                    toggleIcon.textContent = '▼';
-                }
-            }
         });
         
         // Show initial info for default mode
@@ -829,14 +770,8 @@ function useDocument() {
 }
 
 function toggleProcessingModePanel() {
-    const panel = document.getElementById('processing-mode-panel');
-    const toggleIcon = document.querySelector('.processing-mode-toggle-button .toggle-icon');
-    
-    if (panel && toggleIcon) {
-        const isVisible = panel.style.display !== 'none';
-        panel.style.display = isVisible ? 'none' : 'block';
-        toggleIcon.textContent = isVisible ? '▼' : '▲';
-    }
+    // Processing mode panel is now always visible - no toggle needed
+    return;
 }
 
 function getSelectedProcessingMode() {
@@ -855,20 +790,15 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             option.classList.add('selected');
             
-            const modeName = document.getElementById('selected-processing-mode-name');
-            const modeDesc = document.getElementById('selected-processing-mode-desc');
-            const modeTitle = option.querySelector('.mode-title').textContent;
-            const modeDescription = option.querySelector('.mode-description').textContent;
-            
-            if (modeName && modeDesc) {
-                modeName.textContent = modeTitle;
-                modeDesc.textContent = modeDescription;
+            // Update processing mode info if available
+            if (window.inputMethodsHandler) {
+                window.inputMethodsHandler.processingMode = mode;
+                window.inputMethodsHandler.updateProcessingModeInfo(mode);
             }
             
             window.documentStore.setProcessingMode(mode);
             
-            document.getElementById('processing-mode-panel').style.display = 'none';
-            document.querySelector('.processing-mode-toggle-button .toggle-icon').textContent = '▼';
+            console.log(`Processing mode changed to: ${mode}`);
         }
     });
     

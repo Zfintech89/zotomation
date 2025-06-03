@@ -28,7 +28,7 @@
   top: 0;
   left: 0;
   right: 0;
-  z-index: 50;
+  z-index: 1000;
   transition: all 0.3s ease;
 }
 
@@ -148,7 +148,7 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  z-index: 40;
+  z-index: 50;
 }
 
 .sidebar-nav {
