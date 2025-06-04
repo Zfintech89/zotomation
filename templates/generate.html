@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Presentation - SlideWay AI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/create.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/outline.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/generate.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modal.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/all.min.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="generate-container">
+        <header class="generate-header">
+            <div class="logo">
+                <h1>SlideWay AI</h1>
+            </div>
+            <div class="header-actions">
+                <a href="{{ url_for('create') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Change Method
+                </a>
+                <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+                    <i class="fas fa-home"></i> Dashboard
+                </a>
+            </div>
+        </header>
+
+        <main class="generate-main">
+            <!-- Method Indicator -->
+            <div class="method-indicator">
+                <div class="method-badge" id="method-badge">
+                    <i class="fas fa-magic"></i>
+                    <span id="method-name">Generate from Topic</span>
+                </div>
+            </div>
+
+            <!-- Step Progress -->
+            <div class="step-progress">
+                <div class="step active" id="step-input">
+                    <div class="step-number">1</div>
+                    <div class="step-label">Input Content</div>
+                </div>
+                <div class="step" id="step-outline">
+                    <div class="step-number">2</div>
+                    <div class="step-label">Generate Outline</div>
+                </div>
+                <div class="step" id="step-theme">
+                    <div class="step-number">3</div>
+                    <div class="step-label">Select Theme</div>
+                </div>
+                <div class="step" id="step-generate">
+                    <div class="step-number">4</div>
+                    <div class="step-label">Create Slides</div>
+                </div>
+            </div>
+
+            <!-- Input Section -->
+            <section class="input-section" id="input-section">
+                <!-- Topic Input Panel -->
+                <div class="input-panel" id="topic-panel">
+                    <div class="panel-header">
+                        <h2><i class="fas fa-lightbulb"></i> Generate from Topic</h2>
+                        <p>Describe what you want to present and let AI create compelling content</p>
+                    </div>
+                    
+                    <div class="input-form">
+                        <div class="form-group">
+                            <label for="topic-input">What would you like to present about?</label>
+                            <input type="text" id="topic-input" class="form-control" 
+                                   placeholder="e.g., Climate Change Solutions, Team Productivity, Product Launch..."
+                                   maxlength="200">
+                            <div class="input-help">
+                                <i class="fas fa-info-circle"></i>
+                                Be specific to get better results. AI will expand your topic into a full presentation.
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="slide-count">Number of Slides</label>
+                            <div class="slide-count-selector">
+                                <button type="button" class="slide-count-btn" onclick="adjustSlideCount(-1)">-</button>
+                                <input type="number" id="slide-count" min="3" max="10" value="5" readonly>
+                                <button type="button" class="slide-count-btn" onclick="adjustSlideCount(1)">+</button>
+                            </div>
+                            <div class="slide-count-help">
+                                Recommended: 3-7 slides for most presentations
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Text Input Panel -->
+                <div class="input-panel" id="text-panel">
+                    <div class="panel-header">
+                        <h2><i class="fas fa-file-text"></i> Generate from Text</h2>
+                        <p>Paste your content and AI will organize it into slides based on headings</p>
+                    </div>
+                    
+                    <div class="input-form">
+                        <div class="form-group">
+                            <label for="text-input">Paste Your Content</label>
+                            <textarea id="text-input" class="form-control" rows="12"
+                                     placeholder="Paste your text content here...&#10;&#10;Use headings to structure your content:&#10;# Main Heading&#10;## Sub Heading&#10;&#10;Content will be split by headings into slides automatically."></textarea>
+                            <div class="text-stats">
+                                <span id="text-char-count">0 characters</span>
+                                <span class="separator">•</span>
+                                <span id="text-word-count">0 words</span>
+                                <span class="separator">•</span>
+                                <span id="text-estimated-slides">Estimated: 0 slides</span>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="text-topic">Presentation Title (Optional)</label>
+                            <input type="text" id="text-topic" class="form-control" 
+                                   placeholder="Will be auto-detected from content if left empty">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Upload Input Panel -->
+                <div class="input-panel" id="upload-panel">
+                    <div class="panel-header">
+                        <h2><i class="fas fa-file-upload"></i> Generate from Document</h2>
+                        <p>Upload a document and AI will create slides based on its structure</p>
+                    </div>
+                    
+                    <div class="input-form">
+                        <div class="upload-area" id="upload-area">
+                            <div class="upload-content">
+                                <div class="upload-icon">
+                                    <i class="fas fa-cloud-upload-alt"></i>
+                                </div>
+                                <h4>Upload Document</h4>
+                                <p>Supports PDF, DOCX, DOC, and TXT files</p>
+                                <p class="upload-limits">Maximum 50MB • Content will be split by headings</p>
+                                <input type="file" id="file-input" accept=".pdf,.docx,.doc,.txt" style="display: none;">
+                                <button class="btn btn-primary" type="button" onclick="document.getElementById('file-input').click()">
+                                    Choose File
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- File Preview -->
+                        <div id="file-preview" class="file-preview hidden">
+                            <div class="file-info">
+                                <div class="file-icon" id="file-icon">
+                                    <i class="fas fa-file"></i>
+                                </div>
+                                <div class="file-details">
+                                    <h4 id="file-name">document.pdf</h4>
+                                    <div class="file-stats" id="file-stats">Processing...</div>
+                                </div>
+                                <button class="btn btn-sm btn-danger" onclick="clearFile()">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Processing Mode Selection -->
+                        <div id="processing-mode-container" class="hidden">
+                            <div class="form-group">
+                                <label>Content Processing Mode</label>
+                                <div class="processing-modes">
+                                    <div class="processing-mode selected" data-mode="preserve">
+                                        <div class="mode-icon">🔒</div>
+                                        <div class="mode-content">
+                                            <h4>Preserve Original</h4>
+                                            <p>Keep original text and structure as much as possible</p>
+                                        </div>
+                                    </div>
+                                    <div class="processing-mode" data-mode="condense">
+                                        <div class="mode-icon">📝</div>
+                                        <div class="mode-content">
+                                            <h4>Condense Content</h4>
+                                            <p>Summarize while maintaining key points</p>
+                                        </div>
+                                    </div>
+                                    <div class="processing-mode" data-mode="generate">
+                                        <div class="mode-icon">🎨</div>
+                                        <div class="mode-content">
+                                            <h4>Generate Enhanced</h4>
+                                            <p>Create enhanced AI-generated content</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="upload-topic">Presentation Title (Optional)</label>
+                            <input type="text" id="upload-topic" class="form-control" 
+                                   placeholder="Will be auto-detected from document if left empty">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="action-buttons">
+                    <button id="generate-outline-btn" class="btn btn-primary" disabled>
+                        <i class="fas fa-magic"></i>
+                        <span id="generate-btn-text">Generate Outline</span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- Outline Section -->
+            <section class="outline-section hidden" id="outline-section">
+                <div class="section-header">
+                    <h2><i class="fas fa-list"></i> Presentation Outline</h2>
+                    <p>Review and approve the structure before creating slides</p>
+                </div>
+
+                <!-- Outline Loading -->
+                <div id="outline-loading" class="outline-loading hidden">
+                    <div class="loading-spinner"></div>
+                    <h3>Creating your presentation outline...</h3>
+                    <p id="outline-loading-message">Analyzing your content and organizing it into a logical flow...</p>
+                </div>
+
+                <!-- Outline Content -->
+                <div id="outline-content" class="outline-content hidden">
+                    <!-- Outline will be populated here -->
+                </div>
+
+                <!-- Outline Actions -->
+                <div class="outline-actions hidden" id="outline-actions">
+                    <button id="approve-outline-btn" class="btn btn-primary">
+                        <i class="fas fa-check"></i> Looks Great! Proceed to Theme Selection
+                    </button>
+                    <button id="regenerate-outline-btn" class="btn btn-secondary">
+                        <i class="fas fa-redo"></i> Regenerate Outline
+                    </button>
+                    <button id="back-to-input-btn" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Input
+                    </button>
+                </div>
+            </section>
+
+            <!-- Theme Selection Section -->
+            <section class="theme-section hidden" id="theme-section">
+                <div class="section-header">
+                    <h2><i class="fas fa-palette"></i> Choose Theme</h2>
+                    <p>Select a theme that matches your presentation style</p>
+                </div>
+
+                <div class="theme-grid" id="theme-grid">
+                    <!-- Themes will be populated here -->
+                </div>
+
+                <div class="theme-actions">
+                    <button id="create-slides-btn" class="btn btn-primary" disabled>
+                        <i class="fas fa-magic"></i> Create Presentation
+                    </button>
+                    <button id="back-to-outline-btn" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Outline
+                    </button>
+                </div>
+            </section>
+
+            <!-- Generation Section -->
+            <section class="generation-section hidden" id="generation-section">
+                <div class="generation-content">
+                    <div class="loading-spinner"></div>
+                    <h2>Creating your amazing presentation...</h2>
+                    <p id="generation-message">Generating slides based on your approved outline and selected theme...</p>
+                    
+                    <div class="generation-progress">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="generation-progress-fill"></div>
+                        </div>
+                        <div class="progress-text" id="generation-progress-text">Preparing slide generation...</div>
+                    </div>
+
+                    <div class="generation-stages">
+                        <div class="stage" id="stage-outline">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Outline approved</span>
+                        </div>
+                        <div class="stage active" id="stage-slides">
+                            <i class="fas fa-magic"></i>
+                            <span>Generating slides</span>
+                        </div>
+                        <div class="stage" id="stage-complete">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Complete</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Notification -->
+    <div id="notification" class="notification">
+        <div class="notification-content">
+            <i class="notification-icon"></i>
+            <span class="notification-message"></span>
+        </div>
+    </div>
+
+    <!-- Include JavaScript files -->
+    <script src="{{ url_for('static', filename='js/templates.js') }}"></script>
+    <script>
+        // Initialize method from URL parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        const method = urlParams.get('method') || 'topic';
+        
+        // Global state
+        window.generateState = {
+            method: method,
+            currentStep: 'input',
+            inputData: {},
+            outline: null,
+            selectedTheme: null,
+            processing: false
+        };
+    </script>
+    <script src="{{ url_for('static', filename='js/generate.js') }}"></script>
+</body>
+</html>

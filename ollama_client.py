@@ -17,6 +17,8 @@ logging.basicConfig(
         logging.StreamHandler()
     ]
 )
+debug_dir = "error_logs"
+os.makedirs(debug_dir, exist_ok=True)
 logger = logging.getLogger("ollama_client")
 
 OLLAMA_API_URL = "http://localhost:11434/api/generate"
@@ -48,174 +50,23 @@ PROCESSING_MODES = {
     }
 }
 
-def is_generic_content(content):
-    """Check if content is generic - IMPROVED VERSION"""
-    if not isinstance(content, dict):
-        return True
-    
-    layout_context = content.get('_layout_hint', '')
-    
-    if layout_context in ['titleOnly', 'conclusion']:
-        # More lenient validation for title and conclusion
-        generic_indicators = ['placeholder', 'insert content here', 'example text']
-    else:
-        # Stricter validation for content slides
-        generic_indicators = [
-            'placeholder', 'example content', 'insert here', 'page 1', 
-            'section 1', 'content goes here', 'sample text'
-        ]
-    
-    content_str = str(content).lower()
-    
-    for indicator in generic_indicators:
-        if indicator in content_str:
-            logger.debug(f"Found generic indicator: {indicator}")
-            return True
-    
-    return False
+CONTENT_PRESERVATION_MODES = {
+    'preserve': {
+        'instruction': 'Format the following text into the required structure while preserving the original wording as much as possible. Keep key phrases, statistics, and important details exactly as written.',
+        'max_changes': 0.1  # Allow only 10% content modification
+    },
+    'condense': {
+        'instruction': 'Summarize the following text into the required structure while maintaining the core message and key facts.',
+        'max_changes': 0.3  # Allow 30% content modification
+    },
+    'generate': {
+        'instruction': 'Use the following text as inspiration to generate new slide content that enhances and expands on the ideas presented.',
+        'max_changes': 0.7  # Allow 70% content modification
+    }
+}
 
-def validate_content_quality(content, layout):
-    """Validate content quality - IMPROVED VERSION"""
-    if not isinstance(content, dict):
-        return False
-    
-    content['_layout_hint'] = layout
-    
-    if layout in ['titleOnly', 'conclusion']:
-        if layout == 'titleOnly':
-            return (content.get('title') and len(content.get('title', '')) > 3)
-        elif layout == 'conclusion':
-            return (content.get('title') and len(content.get('title', '')) > 3 and
-                   (content.get('summary') or content.get('nextSteps')))
-    
-    if layout == 'titleAndBullets':
-        return (content.get('title') and len(content.get('title', '')) > 5 and
-                content.get('bullets') and len(content.get('bullets', [])) >= 2 and
-                all(len(str(b)) > 10 for b in content.get('bullets', [])[:3]))
-    
-    elif layout == 'imageAndParagraph':
-        return (content.get('title') and len(content.get('title', '')) > 5 and
-                content.get('paragraph') and len(content.get('paragraph', '')) > 30)
-    
-    elif layout == 'twoColumn':
-        return (content.get('title') and len(content.get('title', '')) > 5 and
-                content.get('column1Content') and len(content.get('column1Content', '')) > 20 and
-                content.get('column2Content') and len(content.get('column2Content', '')) > 20)
-    
-    return True
+DEFAULT_DOCUMENT_MODE = 'preserve'  
 
-def extract_content_intelligently(layout, topic, source_text, slide_index, total_slides):
-    """Intelligently extract content preserving original structure"""
-    
-    lines = [line.strip() for line in source_text.split('\n') if line.strip()]
-    paragraphs = [p.strip() for p in source_text.split('\n\n') if p.strip()]
-    
-    # Find potential titles
-    potential_titles = []
-    for line in lines[:5]:
-        if len(line) < 80 and not line.endswith('.') and len(line.split()) < 12:
-            potential_titles.append(line)
-    
-    main_title = potential_titles[0] if potential_titles else f"Section {slide_index - 1}"
-    
-    if layout == 'titleAndBullets':
-        bullets = extract_bullet_points(source_text)
-        if not bullets:
-            bullets = extract_key_sentences(source_text, 4)
-        
-        return {
-            'title': main_title,
-            'bullets': bullets[:5]
-        }
-    
-    elif layout == 'imageAndParagraph':
-        best_paragraph = find_best_paragraph(paragraphs)
-        
-        return {
-            'title': main_title,
-            'imageDescription': f"Visual representation related to {main_title.lower()}",
-            'paragraph': best_paragraph
-        }
-    
-    elif layout == 'twoColumn':
-        half_point = len(paragraphs) // 2
-        first_half = paragraphs[:half_point] if half_point > 0 else paragraphs[:1]
-        second_half = paragraphs[half_point:] if half_point > 0 else paragraphs[1:]
-        
-        return {
-            'title': main_title,
-            'column1Title': 'Key Points',
-            'column1Content': '\n\n'.join(first_half)[:300],
-            'column2Title': 'Additional Details',
-            'column2Content': '\n\n'.join(second_half)[:300]
-        }
-    
-    # Add more layout handling as needed
-    return generate_fallback_content(layout, topic, slide_index)
-
-def extract_bullet_points(text):
-    """Extract existing bullet points from text"""
-    bullets = []
-    lines = text.split('\n')
-    
-    for line in lines:
-        line = line.strip()
-        if (line.startswith(('•', '-', '*')) or re.match(r'^\d+[\.\)]\s+', line)):
-            cleaned = re.sub(r'^[•\-*\d\.\)\s]+', '', line).strip()
-            if cleaned and len(cleaned) > 10:
-                bullets.append(cleaned)
-    
-    return bullets
-
-def extract_key_sentences(text, max_sentences=4):
-    """Extract key sentences as bullet points"""
-    sentences = []
-    for sent in re.split(r'[.!?]+', text):
-        sent = sent.strip()
-        if 20 < len(sent) < 150:  # Good sentence length
-            sentences.append(sent)
-    
-    return sentences[:max_sentences]
-
-def find_best_paragraph(paragraphs):
-    """Find the most substantial paragraph"""
-    best_paragraph = ""
-    
-    for para in paragraphs:
-        if 100 < len(para) < 400:  # Good paragraph length
-            best_paragraph = para
-            break
-    
-    if not best_paragraph and paragraphs:
-        best_paragraph = paragraphs[0]
-    
-    return best_paragraph or "Key information extracted from the document."
-
-def split_text_for_slides(text, num_sections):
-    """Split text into sections for slides"""
-    if not text or num_sections <= 0:
-        return [""]
-    
-    paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
-    
-    if len(paragraphs) <= num_sections:
-        return paragraphs + [""] * (num_sections - len(paragraphs))
-    
-    sections = []
-    paras_per_section = len(paragraphs) // num_sections
-    remainder = len(paragraphs) % num_sections
-    
-    start = 0
-    for i in range(num_sections):
-        section_size = paras_per_section + (1 if i < remainder else 0)
-        end = start + section_size
-        
-        section_paras = paragraphs[start:end]
-        sections.append('\n\n'.join(section_paras))
-        
-        start = end
-    
-    return sections
 
 def extract_clean_json(text, context=""):
     """Enhanced JSON extraction"""
@@ -246,81 +97,6 @@ def extract_clean_json(text, context=""):
     logger.warning(f"Failed to parse JSON for {context}")
     return None
 
-def generate_fallback_content(layout, topic, slide_index):
-    """Generate fallback content for failed cases"""
-    
-    if layout == 'titleAndBullets':
-        return {
-            'title': f"{topic} - Key Points",
-            'bullets': [
-                f"Important aspect of {topic}",
-                f"Key consideration for implementation",
-                f"Critical success factor"
-            ]
-        }
-    elif layout == 'imageAndParagraph':
-        return {
-            'title': f"{topic} Overview",
-            'imageDescription': f"Professional visualization of {topic}",
-            'paragraph': f"This section covers important information about {topic} and its key implications."
-        }
-    elif layout == 'twoColumn':
-        return {
-            'title': f"{topic} Analysis",
-            'column1Title': "Key Points",
-            'column1Content': f"Important aspects of {topic}",
-            'column2Title': "Implications",
-            'column2Content': f"Strategic considerations for {topic}"
-        }
-    
-    return {}
-
-debug_dir = "error_logs"
-os.makedirs(debug_dir, exist_ok=True)
-
-# Add these constants at the top of ollama_client.py
-CONTENT_PRESERVATION_MODES = {
-    'preserve': {
-        'instruction': 'Format the following text into the required structure while preserving the original wording as much as possible. Keep key phrases, statistics, and important details exactly as written.',
-        'max_changes': 0.1  # Allow only 10% content modification
-    },
-    'condense': {
-        'instruction': 'Summarize the following text into the required structure while maintaining the core message and key facts.',
-        'max_changes': 0.3  # Allow 30% content modification
-    },
-    'generate': {
-        'instruction': 'Use the following text as inspiration to generate new slide content that enhances and expands on the ideas presented.',
-        'max_changes': 0.7  # Allow 70% content modification
-    }
-}
-
-DEFAULT_DOCUMENT_MODE = 'preserve'  
-
-
-def generate_content_from_text(layout, topic, source_text, slide_index, total_slides, processing_mode='preserve'):
-    """Generate content using ALL processing modes with proper fallbacks"""
-    
-    logger.info(f"Generating {layout} content (slide {slide_index}/{total_slides}) in {processing_mode} mode")
-    
-    if processing_mode == 'preserve':
-        # Use direct intelligent extraction (already working)
-        return extract_content_intelligently(layout, topic, source_text, slide_index, total_slides)
-    
-    elif processing_mode in ['condense', 'generate']:
-        # Try AI generation first, with intelligent fallback
-        ai_content = generate_with_ai_modes(layout, topic, source_text, slide_index, total_slides, processing_mode)
-        
-        if ai_content and not is_generic_content(ai_content):
-            logger.info(f"Successfully generated {layout} content via AI in {processing_mode} mode")
-            return ai_content
-        else:
-            logger.warning(f"AI {processing_mode} mode failed, falling back to intelligent extraction")
-            return extract_content_intelligently(layout, topic, source_text, slide_index, total_slides)
-    
-    else:
-        # Unknown mode - default to preserve
-        logger.warning(f"Unknown processing mode: {processing_mode}, defaulting to preserve")
-        return extract_content_intelligently(layout, topic, source_text, slide_index, total_slides)
 
 def generate_with_ai_modes(layout, topic, source_text, slide_index, total_slides, processing_mode):
     """AI generation for condense and generate modes with proper prompts"""
@@ -637,439 +413,6 @@ def clean_title(title):
     
     return title
 
-def generate_content(layout, topic, slide_index=None, total_slides=None):
-    """Generate slide content with improved context handling"""
-    escaped_topic = topic.replace(":", " - ").replace("{", "(").replace("}", ")").replace('"', "'")
-    
-    slide_context = ""
-    focus_area = ""
-    
-    if slide_index is not None and total_slides is not None:
-        slide_context = f" This is slide {slide_index} of {total_slides}."
-        
-        if slide_index == 1:
-            focus_area = "introduction and overview"
-        elif slide_index == total_slides:
-            focus_area = "conclusions and next steps"
-        elif slide_index == 2:
-            focus_area = "main concepts and key information"
-        else:
-            aspects = [
-                "important considerations and implications",
-                "real-world applications and case studies", 
-                "current challenges and effective solutions",
-                "statistical data and measurable outcomes",
-                "historical development and evolution",
-                "future trends and emerging developments",
-                "practical implementation strategies"
-            ]
-            focus_area = aspects[(slide_index - 3) % len(aspects)]
-        
-        slide_context += f" Focus on {focus_area}."
-
-    CHAR_LIMITS = {
-        'titleOnly': {'title': 60, 'subtitle': 120},
-        'titleAndBullets': {'title': 80, 'bullets': 150},
-        'quote': {'quote': 200, 'author': 50},
-        'imageAndParagraph': {'title': 80, 'paragraph': 300, 'imageDescription': 1000},  # INCREASED FOR DETAILED PROMPTS
-        'twoColumn': {'title': 80, 'column1Title': 60, 'column2Title': 60, 'column1Content': 300, 'column2Content': 300},
-        'imageWithFeatures': {'title': 80, 'imageDescription': 1000, 'feature_title': 40, 'feature_description': 50},  # INCREASED FOR DETAILED PROMPTS
-        'numberedFeatures': {'title': 80, 'imageDescription': 1000, 'feature_title': 40, 'feature_description': 100},  # INCREASED FOR DETAILED PROMPTS
-        'benefitsGrid': {'title': 60, 'imageDescription': 1000, 'benefit_title': 30, 'benefit_description': 60},  # INCREASED FOR DETAILED PROMPTS
-        'iconGrid': {'title': 60, 'category_name': 25, 'category_description': 40},
-        'sideBySideComparison': {'title': 80, 'leftTitle': 40, 'rightTitle': 40, 'point': 120},
-        'timeline': {'title': 60, 'event_title': 40, 'event_description': 100},
-        'conclusion': {'title': 60, 'summary': 100, 'next_step': 50},
-    }
-
-    limits = CHAR_LIMITS.get(layout, {})
-    
-    prompts = {
-
-        "imageWithFeatures": f"""Create a slide about '{escaped_topic}' with image and 4 features.{slide_context}
-
-        STRICTLY FOLLOW CHARACTER LIMITS (count every character including spaces):
-        - 'title': Maximum {limits.get('title', 80)} characters
-        - 'imageDescription': Maximum {limits.get('imageDescription', 400)} characters
-        - Each feature 'title': Maximum {limits.get('feature_title', 40)} characters
-        - Each feature 'description': Maximum {limits.get('feature_description', 80)} characters
-
-        TITLE GUIDELINES:
-        - Create a specific, action-oriented title
-        - Avoid generic words like "Key Features" or "Main Points"
-
-        Format as JSON with ONLY these fields:
-        - "title": Specific title (under {limits.get('title', 80)} chars)
-        - "imageDescription": Image description (under {limits.get('imageDescription', 400)} chars)
-        - "features": Array of exactly 4 objects, each with:
-        - "title": Feature name (under {limits.get('feature_title', 40)} chars)
-        - "description": Feature description (under {limits.get('feature_description', 80)} chars)
-
-        Example: {{"title": "Combating Gender Discrimination", "imageDescription": "Diverse workplace with equal representation", "features": [{{"title": "Policy Development", "description": "Implement clear anti-discrimination policies and procedures"}}, {{"title": "Training Programs", "description": "Conduct regular bias awareness and inclusion training"}}, {{"title": "Pay Equity", "description": "Regular salary audits to ensure equal pay practices"}}, {{"title": "Reporting Systems", "description": "Safe channels for reporting discrimination incidents"}}]}}""",
-
-        "numberedFeatures": f"""Create a slide with 4 numbered features about '{escaped_topic}'.{slide_context}
-
-        STRICTLY FOLLOW CHARACTER LIMITS (count every character including spaces):
-        - 'title': Maximum {limits.get('title', 80)} characters
-        - 'imageDescription': Maximum {limits.get('imageDescription', 400)} characters
-        - Each feature 'title': Maximum {limits.get('feature_title', 40)} characters
-        - Each feature 'description': Maximum {limits.get('feature_description', 80)} characters
-
-        Format as JSON with ONLY these fields:
-        - 'title': Compelling title (under {limits.get('title', 80)} chars)
-        - 'imageDescription': Brief image description (under {limits.get('imageDescription', 800)} chars)
-        - 'features': Array of exactly 4 objects, each with:
-        - 'number': String number ('1', '2', '3', '4')
-        - 'title': Feature title (under {limits.get('feature_title', 40)} chars)
-        - 'description': Feature description (under {limits.get('feature_description', 100)} chars)
-
-        Example: {{"title": "Breaking Down Gender Barriers", "imageDescription": "Professional women in leadership roles", "features": [{{"number": "1", "title": "Equal Opportunities", "description": "Ensure fair hiring and promotion practices"}}, {{"number": "2", "title": "Mentorship Programs", "description": "Connect women with senior leadership mentors"}}, {{"number": "3", "title": "Flexible Policies", "description": "Support work-life balance for all employees"}}, {{"number": "4", "title": "Accountability", "description": "Track and report diversity metrics regularly"}}]}}""",
-
-        "benefitsGrid": f"""Create a slide about benefits of addressing '{escaped_topic}'.{slide_context}
-
-        STRICTLY FOLLOW CHARACTER LIMITS (count every character including spaces):
-        - 'title': Maximum {limits.get('title', 60)} characters
-        - 'imageDescription': Maximum {limits.get('imageDescription', 400)} characters
-        - Each benefit 'title': Maximum {limits.get('benefit_title', 30)} characters
-        - Each benefit 'description': Maximum {limits.get('benefit_description', 60)} characters
-
-        Format as JSON with ONLY these fields:
-        - 'title': Positive title (under {limits.get('title', 60)} chars)
-        - 'imageDescription': Image description (under {limits.get('imageDescription', 800)} chars)
-        - 'benefits': Array of exactly 4 objects, each with:
-        - 'title': SHORT benefit name (under {limits.get('benefit_title', 30)} chars)
-        - 'description': Brief explanation (under {limits.get('benefit_description', 60)} chars)
-
-        Example: {{"title": "Creating Inclusive Workplaces", "imageDescription": "Diverse team collaborating successfully", "benefits": [{{"title": "Better Performance", "description": "Teams with gender diversity perform 25% better"}}, {{"title": "Higher Innovation", "description": "Diverse perspectives drive creative solutions"}}, {{"title": "Talent Retention", "description": "Inclusive cultures reduce employee turnover"}}, {{"title": "Legal Protection", "description": "Compliance reduces discrimination lawsuits"}}]}}""",
-
-        "titleOnly": f"""Create a compelling title slide about '{escaped_topic}'.{slide_context}
-        
-        STRICTLY FOLLOW CHARACTER LIMITS (count every character including spaces):
-        - 'title': Maximum {limits.get('title', 60)} characters
-        - 'subtitle': Maximum {limits.get('subtitle', 120)} characters
-        
-        TITLE GUIDELINES:
-        - Create a clean, professional title without prefixes like "Introduction to" or slide numbers
-        - Make it engaging and directly related to the topic
-        - Avoid generic words like "Overview", "Examples", "Statistics" at the beginning
-        
-        
-        Format as JSON with ONLY these keys:
-        - 'title': A compelling main title (under {limits.get('title', 60)} chars)
-        - 'subtitle': A descriptive subtitle (under {limits.get('subtitle', 120)} chars)
-        
-        Example: {{"title": "Gender Discrimination", "subtitle": "Understanding Workplace Inequality and Solutions"}}""",
-
-        "titleAndBullets": f"""Create a slide with title and 3-5 bullet points about '{escaped_topic}'.{slide_context}
-        
-        STRICTLY FOLLOW CHARACTER LIMITS (count every character including spaces):
-        - 'title': Maximum {limits.get('title', 80)} characters
-        - Each bullet: Maximum {limits.get('bullets', 150)} characters
-        
-        TITLE GUIDELINES:
-        - Create a natural, engaging title without awkward prefixes
-        - Avoid starting with "Examples", "Key Points", "Statistics", etc.
-        - Make it specific to the focus area but naturally worded
-        
-        Format as JSON with ONLY these fields:
-        - 'title': Clear, natural title (under {limits.get('title', 80)} chars)
-        - 'bullets': Array of 3-5 complete points (each under {limits.get('bullets', 150)} chars)
-        
-        Example: {{"title": "Workplace Gender Discrimination", "bullets": ["Women earn 82 cents for every dollar earned by men", "Only 27% of senior leadership roles are held by women", "Pregnancy discrimination affects 1 in 4 working mothers"]}}""",
-
-        "quote": f"""Create an inspirational quote about '{escaped_topic}'.{slide_context}
-        
-        STRICTLY FOLLOW CHARACTER LIMITS (count every character including spaces):
-        - 'quote': Maximum {limits.get('quote', 200)} characters
-        - 'author': Maximum {limits.get('author', 50)} characters
-        
-        Format as JSON with ONLY these fields:
-        - 'quote': Meaningful quotation (under {limits.get('quote', 200)} chars)
-        - 'author': Real person's name (under {limits.get('author', 50)} chars)
-        
-        Example: {{"quote": "Equality is not a women's issue, it's a human issue. It affects us all.", "author": "Gloria Steinem"}}""",
-
-        "imageAndParagraph": f"""Create a slide about '{escaped_topic}' with image and text.{slide_context}
-        
-        STRICTLY FOLLOW CHARACTER LIMITS (count every character including spaces):
-        - 'title': Maximum {limits.get('title', 80)} characters
-        - 'imageDescription': Maximum {limits.get('imageDescription', 800)} characters  
-        - 'paragraph': Maximum {limits.get('paragraph', 400)} characters
-        
-        TITLE GUIDELINES:
-        - Create a clear, specific title without generic prefixes
-        - Focus on the main concept rather than using words like "About" or "Introduction"
-
-        Do not include any metadata in the response.
-        
-        Format as JSON with ONLY these fields:
-        - 'title': Clear title (under {limits.get('title', 80)} chars)
-        - 'imageDescription': Specific image description (under {limits.get('imageDescription', 400)} chars)
-        - 'paragraph': Detailed explanation (under {limits.get('paragraph', 400)} chars)
-        
-        Example: {{"title": "Gender Pay Gap Realities", "imageDescription": "Professional workplace showing diverse employees", "paragraph": "Despite decades of progress, gender discrimination in the workplace remains a persistent issue. Women continue to face barriers in hiring, promotion, and compensation across various industries."}}""",
-
-        "twoColumn": f"""Create a slide comparing two aspects of '{escaped_topic}'.{slide_context}
-        
-        STRICTLY FOLLOW CHARACTER LIMITS (count every character including spaces):
-        - 'title': Maximum {limits.get('title', 80)} characters
-        - 'column1Title': Maximum {limits.get('column1Title', 60)} characters
-        - 'column2Title': Maximum {limits.get('column2Title', 60)} characters
-        - 'column1Content': Maximum {limits.get('column1Content', 300)} characters
-        - 'column2Content': Maximum {limits.get('column2Content', 300)} characters
-        
-        TITLE GUIDELINES:
-        - Create a natural comparison title without "vs" or "Traditional vs Modern" patterns
-        - Make it specific and engaging
-        
-        Format as JSON with ONLY these fields:
-        - 'title': Natural comparison title (under {limits.get('title', 80)} chars)
-        - 'column1Title': Left column title (under {limits.get('column1Title', 60)} chars)
-        - 'column1Content': Left column content (under {limits.get('column1Content', 300)} chars)
-        - 'column2Title': Right column title (under {limits.get('column2Title', 60)} chars)
-        - 'column2Content': Right column content (under {limits.get('column2Content', 300)} chars)
-        
-        Example: {{"title": "Gender Discrimination Impact", "column1Title": "Individual Effects", "column1Content": "Lower career advancement, reduced earning potential, decreased job satisfaction and mental health impacts", "column2Title": "Organizational Effects", "column2Content": "Reduced diversity, talent loss, legal risks, and decreased innovation and performance"}}""",
-
-        "iconGrid": f"""Create a slide showing 8 areas affected by '{escaped_topic}'.{slide_context}
-        
-        STRICTLY FOLLOW CHARACTER LIMITS (count every character including spaces):
-        - 'title': Maximum {limits.get('title', 60)} characters
-        - Each category 'name': Maximum {limits.get('category_name', 25)} characters
-        - Each category 'description': Maximum {limits.get('category_description', 40)} characters
-        
-        TITLE GUIDELINES:
-        - Create a descriptive title about impact areas
-        - Avoid "Target Markets" unless actually about markets
-        
-        Format as JSON with ONLY these fields:
-        - 'title': Descriptive title (under {limits.get('title', 60)} chars)
-        - 'categories': Array of exactly 8 objects, each with:
-          - 'name': SHORT area name (under {limits.get('category_name', 25)} chars)
-          - 'description': Brief description (under {limits.get('category_description', 40)} chars)
-        
-        Example: {{"title": "Gender Discrimination Impact Areas", "categories": [{{"name": "Workplace", "description": "Hiring, promotion, and pay disparities in employment"}}, {{"name": "Education", "description": "Unequal opportunities in academic and research fields"}}, {{"name": "Healthcare", "description": "Gender bias in medical treatment and research"}}, {{"name": "Technology", "description": "Underrepresentation in STEM careers and leadership"}}, {{"name": "Politics", "description": "Limited representation in government positions"}}, {{"name": "Sports", "description": "Unequal pay and media coverage in athletics"}}, {{"name": "Finance", "description": "Investment and credit discrimination issues"}}, {{"name": "Media", "description": "Stereotypical representation and coverage"}}]}}""",
-
-        "sideBySideComparison": f"""Create a comparison slide about '{escaped_topic}'.{slide_context}
-        
-        STRICTLY FOLLOW CHARACTER LIMITS (count every character including spaces):
-        - 'title': Maximum {limits.get('title', 80)} characters
-        - 'leftTitle': Maximum {limits.get('leftTitle', 40)} characters
-        - 'rightTitle': Maximum {limits.get('rightTitle', 40)} characters
-        - Each point: Maximum {limits.get('point', 120)} characters
-        
-        TITLE GUIDELINES:
-        - Create a balanced comparison title
-        - Focus on the contrast being shown
-        
-        Format as JSON with ONLY these fields:
-        - 'title': Comparison title (under {limits.get('title', 80)} chars)
-        - 'leftTitle': Left section title (under {limits.get('leftTitle', 40)} chars)
-        - 'rightTitle': Right section title (under {limits.get('rightTitle', 40)} chars)
-        - 'leftPoints': Array of exactly 3 points (each under {limits.get('point', 120)} chars)
-        - 'rightPoints': Array of exactly 3 points (each under {limits.get('point', 120)} chars)
-        
-        Example: {{"title": "Gender Discrimination: Problems vs Solutions", "leftTitle": "Current Problems", "rightTitle": "Effective Solutions", "leftPoints": ["Persistent wage gaps across industries", "Limited representation in leadership roles", "Workplace harassment and bias"], "rightPoints": ["Transparent salary bands and regular audits", "Mentorship and leadership development programs", "Strong anti-harassment policies and training"]}}""",
-
-        "timeline": f"""Create a RECENT timeline about '{escaped_topic}'.{slide_context}
-        
-        CRITICAL REQUIREMENT: Focus on RECENT developments, trends, and milestones from 2015-2025. DO NOT include events from the 1990s or earlier decades unless absolutely necessary for context.
-        
-        STRICTLY FOLLOW CHARACTER LIMITS (count every character including spaces):
-        - 'title': Maximum {limits.get('title', 60)} characters
-        - Each event 'title': Maximum {limits.get('event_title', 40)} characters
-        - Each event 'description': Maximum {limits.get('event_description', 100)} characters
-        
-        TIMELINE FOCUS REQUIREMENTS:
-        - Prioritize events from 2020-2025 (most recent 5 years)
-        - Include developments from 2015-2019 only if highly relevant
-        - Focus on current trends, recent policy changes, modern developments
-        - Include future projections or upcoming milestones where appropriate
-        - Use "Present" or "2024-2025" for current ongoing developments
-        - DONT GIVE PRESENT KEYWORD
-        
-        TITLE GUIDELINES:
-        - Create a modern, current timeline title
-        - Use phrases like "Recent Developments", "Modern Progress", "Current Trends"
-        - Avoid generic "History of" or "Evolution of" unless specifically about recent evolution
-        
-        Format as JSON with ONLY these fields:
-        - 'title': Modern timeline title (under {limits.get('title', 60)} chars)
-        - 'events': Array of 4-5 objects, each with:
-          - 'year': Recent year or period (e.g., '2020', '2023', '2024-2025', 'Present')
-          - 'title': Event title (under {limits.get('event_title', 40)} chars)
-          - 'description': Event description (under {limits.get('event_description', 100)} chars)
-        
-        EXAMPLE FOR GENDER DISCRIMINATION:
-        {{"title": "Recent Gender Equality Progress", "events": [{{"year": "2020", "title": "Remote Work Impact", "description": "COVID-19 highlighted gender disparities in work-life balance and caregiving"}}, {{"year": "2021", "title": "Pay Transparency Laws", "description": "Multiple states enacted salary disclosure requirements"}}, {{"year": "2022", "title": "ESG Focus", "description": "Companies prioritized diversity metrics for investment ratings"}}, {{"year": "2023", "title": "AI Bias Awareness", "description": "Growing recognition of algorithmic bias in hiring processes"}}, {{"year": "2024-2025", "title": "Ongoing Initiatives", "description": "Continued push for board diversity and inclusive leadership"}}]}}
-        
-        ALTERNATIVE EXAMPLE FOR TECHNOLOGY TOPIC:
-        {{"title": "AI Development Milestones", "events": [{{"year": "2020", "title": "GPT-3 Launch", "description": "OpenAI released breakthrough language model"}}, {{"year": "2022", "title": "ChatGPT Release", "description": "Public access to conversational AI sparked global adoption"}}, {{"year": "2023", "title": "Enterprise Integration", "description": "Major corporations integrated AI into business operations"}}, {{"year": "2024", "title": "Regulation Framework", "description": "Governments began implementing AI governance policies"}}, {{"year": "2025", "title": "Current Focus", "description": "Emphasis on responsible AI and ethical implementation"}}]}}""",
-        
-        "conclusion": f"""Create a conclusion slide about '{escaped_topic}'.{slide_context}
-        
-        STRICTLY FOLLOW CHARACTER LIMITS (count every character including spaces):
-        - 'title': Maximum {limits.get('title', 60)} characters
-        - 'summary': Maximum {limits.get('summary', 200)} characters
-        - Each next step: Maximum {limits.get('next_step', 50)} characters
-        
-        TITLE GUIDELINES:
-        - Create a forward-looking conclusion title
-        - Avoid generic "Key Takeaways" or "Conclusion"
-        
-        Format as JSON with ONLY these fields:
-        - 'title': Conclusion title (under {limits.get('title', 60)} chars)
-        - 'summary': Brief summary (under {limits.get('summary', 100)} chars)
-        - 'nextSteps': Array of 2-3 action items (each under {limits.get('next_step', 50)} chars)
-        
-        Example: {{"title": "Building Equality Together", "summary": "Addressing gender discrimination requires commitment from individuals, organizations, and society to create truly inclusive environments where everyone can thrive.", "nextSteps": ["Assess current policies for bias and discrimination", "Implement bias training and inclusive hiring practices", "Track progress with regular diversity and inclusion metrics"]}}""",
-    }
-    
-    prompt = prompts.get(layout)
-    if not prompt:
-        return {"error": f"Unknown layout type: {layout}"}
-    
-    start_time = datetime.now()
-    logger.debug(f"[{start_time}] Starting content generation for layout: {layout}, topic: {topic}")
-    
-    try:
-        request_id = f"{layout}_{topic.replace(' ', '_').replace(':', '_').replace('/', '_')[:50]}_{start_time.strftime('%Y%m%d_%H%M%S')}"
-        request_debug_dir = os.path.join(debug_dir, request_id)
-        os.makedirs(request_debug_dir, exist_ok=True)
-        
-        with open(os.path.join(request_debug_dir, "prompt.txt"), "w") as f:
-            f.write(prompt)
-        
-        # Generate slide content
-        response = requests.post(
-            OLLAMA_API_URL,
-            json={
-                "model": "llama3.1:8b", 
-                "prompt": prompt,
-                "stream": False
-            }
-        )
-        
-        content_result = None
-        
-        if response.status_code == 200:
-            result = response.json()
-            generated_text = result.get("response", "")
-            
-            with open(os.path.join(request_debug_dir, "raw_response.txt"), "w") as f:
-                f.write(generated_text)
-            
-            content_result = extract_clean_json(generated_text, layout)
-            
-            if content_result:
-                logger.debug(f"Successfully parsed JSON")
-                
-                # Validate character limits
-                violations = validate_character_limits(content_result, layout)
-                if violations:
-                    logger.warning(f"Character limit violations in {layout}: {violations}")
-                    with open(os.path.join(request_debug_dir, "violations.txt"), "w") as f:
-                        f.write("\n".join(violations))
-                
-                with open(os.path.join(request_debug_dir, "extracted_json.json"), "w") as f:
-                    json.dump(content_result, f, indent=2)
-                
-                if slide_index is not None:
-                    content_result['slide_index'] = slide_index
-                    content_result['total_slides'] = total_slides
-                
-                # Special validation for iconGrid
-                if layout == "iconGrid":
-                    categories = content_result.get('categories', [])
-                    if len(categories) != 8:
-                        logger.warning(f"iconGrid does not have exactly 8 categories, has {len(categories)}")
-                        content_result = validate_and_fix_icon_grid(content_result, topic)
-                
-                # Special validation for numberedFeatures
-                if layout == "numberedFeatures":
-                    features = content_result.get('features', [])
-                    if len(features) != 4:
-                        logger.warning(f"numberedFeatures does not have exactly 4 features, has {len(features)}")
-                        content_result = validate_and_fix_numbered_features(content_result, topic)
-            else:
-                logger.warning(f"Failed to parse JSON from response for {layout}")
-                content_result = format_content_fallback(layout, generated_text, topic, slide_index, total_slides)
-        else:
-            logger.error(f"Ollama API error: {response.status_code}")
-            content_result = {"error": f"Ollama API error: {response.status_code}"}
-        
-        # Generate contextual image descriptions for image layouts - NO TRUNCATION
-        if content_result and isinstance(content_result, dict) and "error" not in content_result:
-            if "image" in layout.lower() or layout in ["sideBySideComparison", "benefitsGrid", "numberedFeatures"]:
-                try:
-                    logger.debug(f"Generating detailed contextual image prompt for {layout}")
-                    
-                    detailed_image_prompt = create_contextual_image_prompt(layout, escaped_topic, content_result, slide_context)
-                    
-                    with open(os.path.join(request_debug_dir, "detailed_image_prompt.txt"), "w") as f:
-                        f.write(detailed_image_prompt)
-                    
-                    img_response = requests.post(
-                        OLLAMA_API_URL,
-                        json={
-                            "model": "llama3.1:8b",
-                            "prompt": detailed_image_prompt,
-                            "stream": False
-                        }
-                    )
-                    
-                    if img_response.status_code == 200:
-                        img_result = img_response.json()
-                        img_description = img_result.get("response", "").strip()
-                        
-                        # Remove quotes if present but NO TRUNCATION
-                        if img_description.startswith('"') and img_description.endswith('"'):
-                            img_description = img_description[1:-1]
-                        
-                        with open(os.path.join(request_debug_dir, "detailed_image_description.txt"), "w") as f:
-                            f.write(img_description)
-                        
-                        # Optional: Validate that Ollama followed the character limit
-                        if len(img_description) < 300 or len(img_description) > 1000:
-                            logger.warning(f"Image description length ({len(img_description)}) outside expected range 300-1000")
-                        
-                        # Use the generated description if current one is placeholder or too short
-                        if ('imageDescription' not in content_result or 
-                            not content_result['imageDescription'] or 
-                            content_result['imageDescription'] in ['Image', 'Image placeholder'] or
-                            len(content_result['imageDescription']) < 50):
-                            content_result["imageDescription"] = img_description
-                            logger.debug(f"Added detailed contextual image description ({len(img_description)} chars): {img_description[:100]}...")
-                    else:
-                        logger.error(f"Detailed image prompt API error: {img_response.status_code}")
-                except Exception as e:
-                    logger.error(f"Failed to generate detailed contextual image prompt: {str(e)}")
-        
-        # Apply final cleaning (but NO truncation for imageDescription)
-        content_result = clean_content_result(content_result, layout)
-        
-        if slide_index is not None:
-            content_result['slide_index'] = slide_index
-            content_result['total_slides'] = total_slides
-            content_result['topic'] = topic  # Add topic for process_content_for_layout
-        with open(os.path.join(request_debug_dir, "final_content.json"), "w") as f:
-            json.dump(content_result, f, indent=2)
-        
-        end_time = datetime.now()
-        duration = (end_time - start_time).total_seconds()
-        logger.debug(f"Content generation completed in {duration:.2f} seconds")
-        
-        if isinstance(content_result, dict):
-            content_result['topic'] = topic
-            if slide_index is not None:
-                content_result['slide_index'] = slide_index
-                content_result['total_slides'] = total_slides
-        
-        return content_result
-        
-    except Exception as e:
-        logger.exception(f"Error in generate_content: {str(e)}")
-        return {"error": f"Error connecting to Ollama: {str(e)}"}
 
 def create_contextual_image_prompt(layout, topic, slide_content, slide_context):
     """Create detailed, comprehensive image prompt based on actual slide content"""
@@ -1523,277 +866,6 @@ def validate_and_fix_numbered_features(content_result, topic):
     logger.debug(f"Final features count: {len(features)}")
     
     return content_result
-
-def format_content_fallback(layout, text, topic, slide_index=None, total_slides=None):
-    """Fallback formatting if JSON parsing fails"""
-    logger.debug(f"Using fallback formatting for layout: {layout}")
-    
-    # Create slide-specific context for differentiation
-    slide_context = ""
-    if slide_index is not None and total_slides is not None:
-        if slide_index == 2:
-            slide_context = "Overview"
-        elif slide_index == total_slides:
-            slide_context = "Conclusion"
-        else:
-            aspects = [
-                "Key Aspects", "Important Facts", "Applications", 
-                "Examples", "Data Points", "Background",
-                "Trends", "Implementation"
-            ]
-            slide_context = aspects[(slide_index - 3) % len(aspects)]
-    
-    # Create fallback content with clean titles
-    if layout == "titleAndBullets":
-        lines = [line.strip() for line in text.split('\n') if line.strip()]
-        title = lines[0] if lines else f"{topic} {slide_context}"
-        bullets = []
-        for line in lines[1:5]:
-            if line.startswith('- '):
-                bullets.append(line[2:])
-            elif line.startswith('* '):
-                bullets.append(line[2:])
-            else:
-                bullets.append(line)
-        
-        if not bullets:
-            bullets = [
-                f"Important aspect of {topic}",
-                f"Key consideration for {topic}",
-                f"Significant impact of {topic}",
-                f"Critical factor in {topic}"
-            ]
-            
-        return {"title": clean_title(title), "bullets": bullets}
-    
-    elif layout == "quote":
-        parts = text.split(' - ')
-        quote = parts[0].strip('"')
-        author = parts[1] if len(parts) > 1 else "Expert"
-        return {"quote": quote, "author": author}
-    
-    elif layout == "imageAndParagraph":
-        lines = [line.strip() for line in text.split('\n') if line.strip()]
-        title = lines[0] if lines else f"{topic} Overview"
-        paragraph = " ".join(lines[1:]) if len(lines) > 1 else f"This slide presents important information about {topic}."
-        return {
-            "title": clean_title(title),
-            "imageDescription": f"Professional image related to {topic}",
-            "paragraph": paragraph
-        }
-    
-    elif layout == "titleOnly":
-        return {
-            "title": clean_title(topic),
-            "subtitle": f"Understanding and Addressing the Challenge"
-        }
-    
-    elif layout == "numberedFeatures":
-        lines = [line.strip() for line in text.split('\n') if line.strip()]
-        title = lines[0] if lines else f"{topic} Key Points"
-        features = []
-        
-        # Try to extract features from text
-        for i, line in enumerate(lines[1:5], 1):
-            feature = {"number": str(i)}
-            
-            # Try to split into title and description
-            parts = line.split(':', 1)
-            if len(parts) > 1:
-                feature["title"] = clean_title(parts[0])
-                feature["description"] = parts[1].strip()
-            else:
-                feature["title"] = f"Key Point {i}"
-                feature["description"] = line.strip()
-            
-            features.append(feature)
-        
-        # Ensure we have exactly 4 features
-        while len(features) < 4:
-            i = len(features) + 1
-            features.append({
-                "number": str(i),
-                "title": f"Key Point {i}",
-                "description": f"Important aspect of {topic}"
-            })
-        
-        return {
-            "title": clean_title(title),
-            "imageDescription": f"Visual representation of {topic}",
-            "features": features[:4]  # Limit to exactly 4 features
-        }
-    
-    # Add other fallback cases as needed...
-    
-    logger.warning(f"No specific fallback for layout: {layout}")
-    return {"error": "Could not format content"}
-
-
-def generate_content_from_extracted_text(layout, topic, extracted_text, slide_index=None, total_slides=None):
-    """
-    Generate slide content using extracted text as the primary source
-    This function creates more relevant slides by using the actual document content
-    """
-    
-    # Limit the text to prevent overwhelming the AI (use relevant portion)
-    max_text_length = 1500
-    if len(extracted_text) > max_text_length:
-        # Try to get the most relevant portion
-        text_portions = extracted_text.split('\n\n')
-        
-        # If we have multiple paragraphs, select the most relevant ones
-        if len(text_portions) > 1 and slide_index and total_slides:
-            portion_per_slide = len(text_portions) // max(1, total_slides - 2)
-            start_idx = max(0, (slide_index - 2) * portion_per_slide)
-            end_idx = min(len(text_portions), start_idx + portion_per_slide + 1)
-            relevant_text = '\n\n'.join(text_portions[start_idx:end_idx])
-            
-            # If still too long, truncate
-            if len(relevant_text) > max_text_length:
-                relevant_text = relevant_text[:max_text_length] + "..."
-        else:
-            relevant_text = extracted_text[:max_text_length] + "..."
-    else:
-        relevant_text = extracted_text
-
-    slide_context = ""
-    if slide_index and total_slides:
-        slide_context = f" This is slide {slide_index} of {total_slides}."
-        if slide_index == 1:
-            slide_context += " Focus on introducing the topic."
-        elif slide_index == total_slides:
-            slide_context += " Focus on conclusions and next steps."
-        else:
-            slide_context += f" Focus on key details from the content."
-
-    # Create layout-specific prompts that use the extracted text
-    layout_prompts = {
-        "titleOnly": f"""Based on this extracted content about '{topic}':
-
-CONTENT:
-{relevant_text}
-
-Create a title slide. Extract the main topic and create an engaging subtitle.{slide_context}
-
-Return ONLY valid JSON:
-{{"title": "Main title from content", "subtitle": "Descriptive subtitle"}}""",
-
-        "titleAndBullets": f"""Based on this extracted content about '{topic}':
-
-CONTENT:
-{relevant_text}
-
-Extract 3-5 key points from the content above and format them as bullet points.{slide_context}
-
-Return ONLY valid JSON:
-{{"title": "Title based on content", "bullets": ["Point 1", "Point 2", "Point 3", "Point 4"]}}""",
-
-        "quote": f"""Based on this extracted content about '{topic}':
-
-CONTENT:
-{relevant_text}
-
-Find a meaningful quote, key statement, or important excerpt from the content above.{slide_context}
-
-Return ONLY valid JSON:
-{{"quote": "Key quote or statement from content", "author": "Source or context"}}""",
-
-        "imageAndParagraph": f"""Based on this extracted content about '{topic}':
-
-CONTENT:
-{relevant_text}
-
-Extract key information and create a descriptive paragraph from the content above.{slide_context}
-
-Return ONLY valid JSON:
-{{"title": "Title from content", "imageDescription": "Relevant image description", "paragraph": "Key paragraph from content"}}""",
-
-        "twoColumn": f"""Based on this extracted content about '{topic}':
-
-CONTENT:
-{relevant_text}
-
-Split the key information from the content above into two related sections or compare two aspects.{slide_context}
-
-Return ONLY valid JSON:
-{{"title": "Title from content", "column1Title": "First aspect", "column1Content": "Content for first column", "column2Title": "Second aspect", "column2Content": "Content for second column"}}""",
-
-        "conclusion": f"""Based on this extracted content about '{topic}':
-
-CONTENT:
-{relevant_text}
-
-Summarize the main points from the content above and suggest actionable next steps.{slide_context}
-
-Return ONLY valid JSON:
-{{"title": "Conclusion title", "summary": "Summary of key points", "nextSteps": ["Action 1", "Action 2", "Action 3"]}}""",
-
-        "timeline": f"""Based on this extracted content about '{topic}':
-
-CONTENT:
-{relevant_text}
-
-Extract chronological events, milestones, or steps from the content above. Focus on recent developments (2015-2025).{slide_context}
-
-Return ONLY valid JSON:
-{{"title": "Timeline title", "events": [{{"year": "2020", "title": "Event", "description": "Description"}}, {{"year": "2023", "title": "Event", "description": "Description"}}]}}""",
-
-        "imageWithFeatures": f"""Based on this extracted content about '{topic}':
-
-CONTENT:
-{relevant_text}
-
-Extract 4 key features, benefits, or points from the content above.{slide_context}
-
-Return ONLY valid JSON:
-{{"title": "Title from content", "imageDescription": "Relevant image", "features": [{{"title": "Feature 1", "description": "Description"}}, {{"title": "Feature 2", "description": "Description"}}]}}"""
-    }
-
-    prompt = layout_prompts.get(layout, f"""Based on the extracted content about '{topic}', create appropriate content for a {layout} slide. Use the actual content provided and return valid JSON only.""")
-
-    try:
-        logger.debug(f"Generating {layout} content from extracted text (length: {len(relevant_text)})")
-        
-        response = requests.post(
-            OLLAMA_API_URL,
-            json={
-                "model": "llama3.1:8b",
-                "prompt": prompt,
-                "stream": False
-            }
-        )
-        
-        if response.status_code == 200:
-            result = response.json()
-            generated_text = result.get("response", "")
-            
-            # Extract JSON from response
-            content_result = extract_clean_json(generated_text, layout)
-            
-            if content_result:
-                logger.debug(f"Successfully generated {layout} content from extracted text")
-                
-                # Process and validate the content
-                processed_content = process_content_for_layout(content_result, layout)
-                
-                # Add slide tracking info
-                if slide_index is not None:
-                    processed_content['slide_index'] = slide_index
-                    processed_content['total_slides'] = total_slides
-                
-                return processed_content
-            else:
-                logger.warning(f"Failed to parse JSON from extracted text generation for {layout}")
-        else:
-            logger.error(f"Ollama API error for extracted text: {response.status_code}")
-            
-    except Exception as e:
-        logger.error(f"Error generating content from extracted text: {e}")
-    
-    # Fallback to regular generation if extraction-based generation fails
-    logger.info(f"Falling back to regular generation for {layout}")
-    return generate_content(layout, topic, slide_index, total_slides)
-
 
 
 def process_full_document_for_presentation(full_text, topic, processing_mode='preserve'):
@@ -2309,7 +1381,6 @@ def generate_slide_with_retry(slide_plan, full_document, document_analysis, proc
     
     # All retries failed, use fallback
     logger.warning(f"🔄 All retries failed for slide {slide_number}, using intelligent fallback")
-    return generate_intelligent_fallback(layout, relevant_text, slide_plan, processing_mode)
 
 def create_document_slide_prompt_json(layout, relevant_text, content_focus, purpose, processing_mode, document_context, attempt_number=1):
     """
@@ -2509,136 +1580,6 @@ def get_layout_json_schema(layout):
     return schemas.get(layout, {})
 
 
-def generate_intelligent_fallback(layout, relevant_text, slide_plan, processing_mode):
-    """
-    Generate intelligent fallback content when AI generation fails
-    """
-    logger.info(f"Generating intelligent fallback for {layout}")
-    
-    purpose = slide_plan.get('purpose', 'Content')
-    content_focus = slide_plan.get('content_focus', '')
-    
-    # Extract meaningful content from the text
-    lines = [line.strip() for line in relevant_text.split('\n') if line.strip() and len(line.strip()) > 10]
-    paragraphs = [p.strip() for p in relevant_text.split('\n\n') if p.strip() and len(p.strip()) > 20]
-    sentences = [s.strip() for s in re.split(r'[.!?]+', relevant_text) if len(s.strip()) > 15]
-    
-    if layout == 'titleOnly':
-        # Use first meaningful line or purpose as title
-        title = lines[0] if lines and len(lines[0]) < 80 else purpose
-        subtitle = content_focus or "Key insights and analysis from the document"
-        
-        return {
-            'title': title[:60],
-            'subtitle': subtitle[:120]
-        }
-    
-    elif layout == 'titleAndBullets':
-        title = lines[0] if lines and len(lines[0]) < 80 else purpose
-        
-        # Extract bullets from text
-        bullets = []
-        
-        # Try to find existing bullet points
-        for line in lines:
-            if line.startswith(('•', '-', '*')) or re.match(r'^\d+\.', line):
-                clean_bullet = re.sub(r'^[•\-*\d\.]\s*', '', line).strip()
-                if 15 <= len(clean_bullet) <= 150:
-                    bullets.append(clean_bullet)
-        
-        # If no bullets found, create from sentences
-        if len(bullets) < 3:
-            bullets = []
-            for sentence in sentences:
-                if 15 <= len(sentence) <= 150:
-                    bullets.append(sentence)
-                if len(bullets) >= 5:
-                    break
-        
-        # Ensure minimum bullets
-        while len(bullets) < 3:
-            bullets.append(f"Key point from the document content")
-        
-        return {
-            'title': title[:80],
-            'bullets': bullets[:5]
-        }
-    
-    elif layout == 'imageAndParagraph':
-        title = lines[0] if lines and len(lines[0]) < 80 else purpose
-        
-        # Find best paragraph
-        paragraph = ""
-        for p in paragraphs:
-            if 50 <= len(p) <= 400:
-                paragraph = p
-                break
-        
-        if not paragraph and sentences:
-            # Create paragraph from sentences
-            paragraph = '. '.join(sentences[:3]) + '.'
-        
-        if not paragraph:
-            paragraph = relevant_text[:400] if relevant_text else "Key information extracted from the document."
-        
-        return {
-            'title': title[:80],
-            'imageDescription': f"Visual representation related to {title.lower()}",
-            'paragraph': paragraph[:400]
-        }
-    
-    elif layout == 'conclusion':
-        # Extract conclusion from end of text
-        conclusion_text = relevant_text[-500:] if len(relevant_text) > 500 else relevant_text
-        
-        return {
-            'title': 'Key Takeaways',
-            'summary': conclusion_text[:200] if conclusion_text else 'Summary of main findings from the document',
-            'nextSteps': [
-                'Review key findings',
-                'Implement recommendations',
-                'Monitor progress'
-            ]
-        }
-    
-    elif layout == 'quote':
-        # Find a good quote from the text
-        quote = ""
-        for sentence in sentences:
-            if 20 <= len(sentence) <= 200:
-                quote = sentence
-                break
-        
-        if not quote:
-            quote = relevant_text[:200] if relevant_text else "Key insight from the document"
-        
-        return {
-            'quote': quote[:200],
-            'author': 'Document Source'
-        }
-    
-    elif layout == 'twoColumn':
-        title = lines[0] if lines and len(lines[0]) < 80 else purpose
-        
-        # Split content into two parts
-        mid_point = len(paragraphs) // 2 if paragraphs else 0
-        
-        col1_content = '\n'.join(paragraphs[:mid_point]) if mid_point > 0 else relevant_text[:300]
-        col2_content = '\n'.join(paragraphs[mid_point:]) if mid_point > 0 else relevant_text[300:600]
-        
-        return {
-            'title': title[:80],
-            'column1Title': 'Key Points',
-            'column1Content': col1_content[:300],
-            'column2Title': 'Additional Details', 
-            'column2Content': col2_content[:300]
-        }
-    
-    # Default fallback
-    return {
-        'title': purpose[:80] if purpose else 'Document Content',
-        'content': relevant_text[:200] if relevant_text else 'Content from document'
-    }
 
 
 def generate_slide_from_document_section(slide_plan, full_document, document_analysis, processing_mode):
@@ -2804,61 +1745,833 @@ def extract_document_section(full_document, source_section, slide_number, total_
             return full_document[start_pos:end_pos]
 
 
-def generate_slides_from_full_document(full_text, topic, template_id, processing_mode='preserve'):
-    """
-    Main function to generate slides from full document using enhanced approach
-    """
+
+# Add to ollama_client.py
+
+def generate_presentation_outline(topic, slide_count, input_method='topic', text_content=None):
+    """Generate a comprehensive presentation outline"""
     
-    logger.info(f"Starting full document slide generation in {processing_mode} mode")
+    logger.info(f"🎯 Generating outline for '{topic}' with {slide_count} slides")
     
-    # Stage 1: Analyze full document
-    document_analysis = process_full_document_for_presentation(full_text, topic, processing_mode)
+    if input_method == 'topic':
+        content_context = f"Topic: {topic}"
+    elif input_method == 'text' and text_content:
+        # Limit text for outline generation
+        limited_text = text_content[:1500] if len(text_content) > 1500 else text_content
+        content_context = f"Topic: {topic}\n\nSource Content:\n{limited_text}"
+    else:
+        content_context = f"Topic: {topic}"
     
-    if not document_analysis['success']:
-        logger.warning("Document analysis failed, using fallback approach")
+    outline_prompt = f"""You are an expert presentation designer. Create a comprehensive outline for a {slide_count}-slide presentation.
+
+{content_context}
+
+Create a logical, flowing presentation structure with clear transitions between slides.
+
+Return ONLY this JSON structure:
+{{
+    "presentation_meta": {{
+        "title": "Engaging presentation title",
+        "objective": "What this presentation achieves",
+        "target_audience": "Who this is for", 
+        "key_message": "Main takeaway"
+    }},
+    "slide_structure": [
+        {{
+            "slide_number": 1,
+            "layout": "titleOnly",
+            "title": "Compelling slide title",
+            "purpose": "Introduction and hook",
+            "key_points": ["Opening hook", "Preview of content"],
+            "context": "Sets the stage for the entire presentation",
+            "transitions": {{
+                "from_previous": null,
+                "to_next": "Transitions into main concepts"
+            }}
+        }},
+        {{
+            "slide_number": 2,
+            "layout": "titleAndBullets",
+            "title": "Framework/Overview",
+            "purpose": "Establish framework",
+            "key_points": ["Key concept 1", "Key concept 2", "Key concept 3"],
+            "context": "Builds foundation for detailed exploration",
+            "transitions": {{
+                "from_previous": "Building on the introduction",
+                "to_next": "Each concept will be explored in detail"
+            }}
+        }}
+    ]
+}}
+
+LAYOUT GUIDELINES:
+- Slide 1: Always "titleOnly" for introduction
+- Slide {slide_count}: Always "conclusion" for wrap-up
+- Middle slides: Mix of "titleAndBullets", "imageAndParagraph", "twoColumn", "quote", "timeline", etc.
+- Ensure logical flow and variety in layouts
+- Each slide should have clear purpose and transitions
+
+Create exactly {slide_count} slides with a compelling narrative flow."""
+
+    try:
+        response = requests.post(
+            OLLAMA_API_URL,
+            json={
+                "model": "llama3.1:8b",
+                "prompt": outline_prompt,
+                "stream": False,
+                "format": "json",
+                "options": {
+                    "temperature": 0.2,  # Lower temperature for consistent structure
+                    "top_p": 0.8,
+                    "repeat_penalty": 1.1
+                }
+            }
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            generated_text = result.get("response", "")
+            
+            try:
+                outline = json.loads(generated_text)
+                
+                # Validate outline structure
+                if validate_outline_structure(outline, slide_count):
+                    logger.info(f"✅ Successfully generated outline with {len(outline['slide_structure'])} slides")
+                    return outline
+                else:
+                    logger.warning("⚠️ Invalid outline structure, using fallback")
+                    
+            except json.JSONDecodeError as e:
+                logger.warning(f"⚠️ JSON decode error in outline generation: {e}")
+                
+    except Exception as e:
+        logger.error(f"❌ Error generating outline: {e}")
     
-    analysis_data = document_analysis['analysis']
-    slide_structure = analysis_data['presentation_plan']['slide_structure']
+    # Fallback outline generation
+    logger.info("🔄 Using fallback outline generation")
+
+def validate_outline_structure(outline, expected_slides):
+    """Validate the generated outline structure"""
+    try:
+        # Check required top-level keys
+        if not all(key in outline for key in ['presentation_meta', 'slide_structure']):
+            return False
+        
+        # Check presentation meta
+        meta = outline['presentation_meta']
+        required_meta = ['title', 'objective', 'target_audience', 'key_message']
+        if not all(key in meta for key in required_meta):
+            return False
+        
+        # Check slide structure
+        slides = outline['slide_structure']
+        if len(slides) != expected_slides:
+            return False
+        
+        # Check each slide
+        required_slide_keys = ['slide_number', 'layout', 'title', 'purpose', 'key_points', 'context', 'transitions']
+        for slide in slides:
+            if not all(key in slide for key in required_slide_keys):
+                return False
+            
+            # Check transitions structure
+            transitions = slide['transitions']
+            if not all(key in transitions for key in ['from_previous', 'to_next']):
+                return False
+        
+        return True
+        
+    except Exception:
+        return False
+
+
+def generate_slide_with_context(slide_info, full_outline, template_id):
+    """Generate individual slide with full presentation context"""
     
-    # Stage 2: Generate slides based on analysis
+    layout = slide_info['layout']
+    slide_number = slide_info['slide_number']
+    total_slides = len(full_outline['slide_structure'])
+    
+    # Create context-aware prompt
+    presentation_context = f"""
+PRESENTATION CONTEXT:
+Title: {full_outline['presentation_meta']['title']}
+Objective: {full_outline['presentation_meta']['objective']}
+Key Message: {full_outline['presentation_meta']['key_message']}
+
+SLIDE POSITION: {slide_number} of {total_slides}
+
+CURRENT SLIDE:
+Purpose: {slide_info['purpose']}
+Context: {slide_info['context']}
+Key Points: {', '.join(slide_info['key_points'])}
+
+FLOW CONTEXT:
+Previous Transition: {slide_info['transitions']['from_previous'] or 'Opening slide'}
+Next Transition: {slide_info['transitions']['to_next'] or 'Closing slide'}
+
+SURROUNDING SLIDES:
+"""
+    
+    # Add context from previous and next slides
+    prev_slide = None
+    next_slide = None
+    
+    for slide in full_outline['slide_structure']:
+        if slide['slide_number'] == slide_number - 1:
+            prev_slide = slide
+        elif slide['slide_number'] == slide_number + 1:
+            next_slide = slide
+    
+    if prev_slide:
+        presentation_context += f"Previous Slide: {prev_slide['title']} - {prev_slide['purpose']}\n"
+    if next_slide:
+        presentation_context += f"Next Slide: {next_slide['title']} - {next_slide['purpose']}\n"
+    
+    # Generate content with context
+    layout_prompts = {
+        'titleOnly': f"""
+{presentation_context}
+
+Create a compelling title slide that sets the tone for the entire presentation.
+
+Return ONLY this JSON:
+{{"title": "Engaging title (max 60 chars)", "subtitle": "Compelling subtitle that previews the journey (max 120 chars)"}}
+
+Title should be: {slide_info['title']}
+Make it engaging and set proper expectations for the presentation.
+""",
+
+        'titleAndBullets': f"""
+{presentation_context}
+
+Create bullet points that advance the presentation narrative and connect to surrounding slides.
+
+Return ONLY this JSON:
+{{"title": "Clear section title (max 80 chars)", "bullets": ["Bullet 1 (max 150 chars)", "Bullet 2", "Bullet 3", "Bullet 4"]}}
+
+Title should be: {slide_info['title']}
+Create 3-5 bullets that flow logically and connect to the overall presentation arc.
+""",
+
+        'imageAndParagraph': f"""
+{presentation_context}
+
+Create detailed content that fits naturally in the presentation flow.
+
+Return ONLY this JSON:
+{{"title": "Descriptive title (max 80 chars)", "imageDescription": "Detailed image description (max 400 chars)", "paragraph": "Comprehensive explanation (max 400 chars)"}}
+
+Title should be: {slide_info['title']}
+Content should build on previous slides and prepare for upcoming content.
+""",
+
+        'conclusion': f"""
+{presentation_context}
+
+Create a strong conclusion that ties together the entire presentation.
+
+Return ONLY this JSON:
+{{"title": "Conclusion title (max 60 chars)", "summary": "Summary that reinforces key message (max 200 chars)", "nextSteps": ["Action 1 (max 50 chars)", "Action 2", "Action 3"]}}
+
+Summarize the journey and provide clear, actionable next steps that align with the presentation objective.
+"""
+    }
+    
+    prompt = layout_prompts.get(layout, f"""
+{presentation_context}
+
+Create appropriate {layout} content that fits the presentation flow.
+Return valid JSON only.
+""")
+    
+    try:
+        response = requests.post(
+            OLLAMA_API_URL,
+            json={
+                "model": "llama3.1:8b",
+                "prompt": prompt,
+                "stream": False,
+                "format": "json",
+                "options": {
+                    "temperature": 0.3,
+                    "top_p": 0.9,
+                    "repeat_penalty": 1.1
+                }
+            }
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            generated_text = result.get("response", "")
+            
+            try:
+                content_result = json.loads(generated_text)
+                
+                # Process content
+                content_result['topic'] = full_outline['presentation_meta']['title']
+                content_result['slide_index'] = slide_number
+                content_result['total_slides'] = total_slides
+                
+                return process_content_for_layout(content_result, layout)
+                
+            except json.JSONDecodeError:
+                logger.warning(f"JSON decode error for slide {slide_number}")
+                
+    except Exception as e:
+        logger.error(f"Error generating slide {slide_number}: {e}")
+    
+def generate_slides_from_outline(outline, template_id):
+    """Generate all slides using the outline context"""
+    
     slides = []
+    slide_structure = outline['slide_structure']
     
-    for slide_plan in slide_structure:
+    logger.info(f"🎨 Generating {len(slide_structure)} slides with context")
+    
+    for slide_info in slide_structure:
         try:
-            content = generate_slide_from_document_section(
-                slide_plan=slide_plan,
-                full_document=full_text,
-                document_analysis=analysis_data,
-                processing_mode=processing_mode
+            content = generate_slide_with_context(slide_info, outline, template_id)
+            
+            if content:
+                slides.append({
+                    'layout': slide_info['layout'],
+                    'content': content
+                })
+                logger.info(f"Generated slide {slide_info['slide_number']}: {slide_info['layout']}")
+            else:
+                logger.warning(f"Failed to generate slide {slide_info['slide_number']}")
+                
+        except Exception as e:
+            logger.error(f"Error generating slide {slide_info['slide_number']}: {e}")
+            continue
+    
+    logger.info(f"✅ Successfully generated {len(slides)} slides with context")
+    return slides
+
+
+def generate_presentation_outline_enhanced(topic, slide_count, input_method='topic', content_context=None, processing_mode='generate'):
+    """Enhanced outline generation with content context support"""
+    
+    logger.info(f"🎯 Generating enhanced outline: method={input_method}, mode={processing_mode}")
+    
+    # Build context-aware prompt
+    if input_method == 'topic':
+        content_section = f"Topic: {topic}"
+        instruction = "Create a comprehensive presentation outline based on the topic."
+        
+    elif input_method == 'text' and content_context:
+        # Limit content for prompt
+        content_preview = content_context['content'][:2000]
+        if len(content_context['content']) > 2000:
+            content_preview += "..."
+            
+        content_section = f"""Topic: {topic}
+
+Source Text Content:
+{content_preview}
+
+Content Statistics:
+- Word Count: {content_context['word_count']}
+- Character Count: {content_context['char_count']}"""
+
+        instruction = f"""Analyze the provided text content and create a presentation outline that {
+            'preserves the original structure and key points' if processing_mode == 'preserve' else
+            'organizes and enhances the content effectively'
+        }. Extract the main themes and organize them into a logical flow."""
+        
+    elif input_method == 'document' and content_context:
+        # Limit content for prompt
+        content_preview = content_context['content'][:2000]
+        if len(content_context['content']) > 2000:
+            content_preview += "..."
+            
+        content_section = f"""Topic: {topic}
+
+Source Document Content:
+{content_preview}
+
+Content Statistics:
+- Word Count: {content_context['word_count']}
+- Character Count: {content_context['char_count']}
+- Processing Mode: {processing_mode}"""
+
+        mode_instructions = {
+            'preserve': 'maintain the original document structure and wording as much as possible',
+            'condense': 'summarize and condense the key points while maintaining the core message',
+            'generate': 'enhance and expand the content with additional context and examples'
+        }
+
+        instruction = f"""Analyze the provided document content and create a presentation outline that will {mode_instructions.get(processing_mode, 'organize the content effectively')}. Structure the content for maximum impact and clarity."""
+    
+    else:
+        content_section = f"Topic: {topic}"
+        instruction = "Create a comprehensive presentation outline."
+    
+    # Enhanced outline prompt
+    outline_prompt = f"""You are an expert presentation designer. {instruction}
+
+{content_section}
+
+Create a detailed presentation outline with exactly {slide_count} slides that tells a compelling story.
+
+REQUIREMENTS:
+- Create a logical flow from introduction to conclusion
+- Ensure each slide has a clear purpose and connects to the next
+- Use varied layouts for visual interest
+- Include specific content guidance for each slide
+- Add transition guidance between slides
+
+Available layouts: titleOnly, titleAndBullets, imageAndParagraph, twoColumn, quote, timeline, conclusion, imageWithFeatures, numberedFeatures, benefitsGrid, iconGrid, sideBySideComparison
+
+Return ONLY this JSON structure:
+{{
+    "presentation_meta": {{
+        "title": "Engaging presentation title",
+        "objective": "What this presentation achieves",
+        "target_audience": "Who this is for",
+        "key_message": "Main takeaway message"
+    }},
+    "slide_structure": [
+        {{
+            "slide_number": 1,
+            "layout": "titleOnly",
+            "title": "Compelling slide title",
+            "purpose": "Introduction and engagement",
+            "key_points": ["Opening hook", "Preview of content"],
+            "context": "Sets the stage and captures attention",
+            "transitions": {{
+                "from_previous": null,
+                "to_next": "Transitions into main framework"
+            }}{
+                ', "content_preview": "Brief preview of slide content from source"' if content_context else ''
+            }
+        }}
+    ]
+}}
+
+Focus on creating a presentation that flows naturally and engages the audience throughout."""
+
+    try:
+        response = requests.post(
+            OLLAMA_API_URL,
+            json={
+                "model": "llama3.1:8b",
+                "prompt": outline_prompt,
+                "stream": False,
+                "format": "json",
+                "options": {
+                    "temperature": 0.2,
+                    "top_p": 0.8,
+                    "repeat_penalty": 1.1
+                }
+            }
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            generated_text = result.get("response", "")
+            
+            try:
+                outline = json.loads(generated_text)
+                
+                # Validate and enhance outline
+                if validate_outline_structure_enhanced(outline, slide_count):
+                    logger.info(f"✅ Enhanced outline generated: {len(outline['slide_structure'])} slides")
+                    return outline
+                else:
+                    logger.warning("⚠️ Enhanced outline validation failed, using fallback")
+                    
+            except json.JSONDecodeError as e:
+                logger.warning(f"⚠️ JSON decode error in enhanced outline: {e}")
+                
+    except Exception as e:
+        logger.error(f"❌ Error in enhanced outline generation: {e}")
+    
+    # Fallback outline generation
+    logger.info("🔄 Using enhanced fallback outline generation")
+    return create_enhanced_fallback_outline(topic, slide_count, input_method, content_context)
+
+def generate_slides_from_outline_enhanced(outline, template_id, content_data=None, processing_mode='preserve'):
+    """Enhanced slide generation from outline with content context"""
+    
+    slides = []
+    slide_structure = outline['slide_structure']
+    generation_metadata = outline.get('generation_metadata', {})
+    input_method = generation_metadata.get('input_method', 'topic')
+    
+    logger.info(f"🎨 Generating {len(slide_structure)} slides with enhanced context (method: {input_method})")
+    
+    for slide_info in slide_structure:
+        try:
+            # Generate slide with enhanced context
+            content = generate_slide_with_enhanced_context(
+                slide_info=slide_info,
+                full_outline=outline,
+                template_id=template_id,
+                content_data=content_data,
+                processing_mode=processing_mode,
+                input_method=input_method
             )
             
             if content:
                 slides.append({
-                    'layout': slide_plan['layout'],
+                    'layout': slide_info['layout'],
                     'content': content
                 })
-                logger.info(f"Generated slide {slide_plan['slide_number']}: {slide_plan['layout']}")
-            
+                logger.info(f"Generated slide {slide_info['slide_number']}: {slide_info['layout']}")
+            else:
+                logger.warning(f"Failed to generate slide {slide_info['slide_number']}")
+                
         except Exception as e:
-            logger.error(f"Failed to generate slide {slide_plan['slide_number']}: {e}")
+            logger.error(f"Error generating slide {slide_info['slide_number']}: {e}")
             continue
     
-    # Ensure minimum slide count
-    if len(slides) < 3:
-        logger.warning("Too few slides generated, adding fallback slides")
-        while len(slides) < 3:
-            fallback_slide = {
-                'layout': 'titleAndBullets',
-                'content': generate_fallback_content('titleAndBullets', topic, len(slides) + 1)
-            }
-            slides.append(fallback_slide)
+    logger.info(f"✅ Successfully generated {len(slides)} enhanced slides")
+    return slides
+
+def generate_slide_with_enhanced_context(slide_info, full_outline, template_id, content_data=None, processing_mode='preserve', input_method='topic'):
+    """Generate individual slide with enhanced context from outline and source content"""
     
-    logger.info(f"Successfully generated {len(slides)} slides from document")
+    layout = slide_info['layout']
+    slide_number = slide_info['slide_number']
+    total_slides = len(full_outline['slide_structure'])
+    
+    # Build enhanced context
+    presentation_context = f"""
+PRESENTATION CONTEXT:
+Title: {full_outline['presentation_meta']['title']}
+Objective: {full_outline['presentation_meta']['objective']}
+Key Message: {full_outline['presentation_meta']['key_message']}
+Input Method: {input_method}
+Processing Mode: {processing_mode}
+
+SLIDE POSITION: {slide_number} of {total_slides}
+
+CURRENT SLIDE:
+Purpose: {slide_info['purpose']}
+Context: {slide_info['context']}
+Key Points: {', '.join(slide_info.get('key_points', []))}
+
+SLIDE FLOW:
+Previous Transition: {slide_info['transitions']['from_previous'] or 'Opening slide'}
+Next Transition: {slide_info['transitions']['to_next'] or 'Closing slide'}
+"""
+
+    # Add content context if available
+    if content_data and input_method in ['text', 'document']:
+        # Extract relevant content section for this slide
+        relevant_content = extract_relevant_content_for_slide(
+            content_data, slide_info, slide_number, total_slides
+        )
+        
+        if relevant_content:
+            presentation_context += f"""
+SOURCE CONTENT SECTION:
+{relevant_content[:1000]}{'...' if len(relevant_content) > 1000 else ''}
+
+CONTENT PROCESSING:
+Mode: {processing_mode}
+Instruction: {'Preserve original wording and structure' if processing_mode == 'preserve' else 'Condense while maintaining key facts' if processing_mode == 'condense' else 'Enhance and expand with additional context'}
+"""
+
+    # Get surrounding slides context
+    prev_slide = None
+    next_slide = None
+    
+    for slide in full_outline['slide_structure']:
+        if slide['slide_number'] == slide_number - 1:
+            prev_slide = slide
+        elif slide['slide_number'] == slide_number + 1:
+            next_slide = slide
+    
+    if prev_slide:
+        presentation_context += f"Previous Slide: {prev_slide['title']} - {prev_slide['purpose']}\n"
+    if next_slide:
+        presentation_context += f"Next Slide: {next_slide['title']} - {next_slide['purpose']}\n"
+    
+    # Create layout-specific prompts with enhanced context
+    layout_prompts = {
+        'titleOnly': f"""
+{presentation_context}
+
+Create a compelling title slide that sets the tone for the entire presentation.
+
+Return ONLY this JSON:
+{{"title": "Engaging title (max 60 chars)", "subtitle": "Compelling subtitle that previews the journey (max 120 chars)"}}
+
+Title should be: {slide_info['title']}
+Make it engaging and set proper expectations for the presentation flow.
+""",
+
+        'titleAndBullets': f"""
+{presentation_context}
+
+Create bullet points that advance the presentation narrative and connect to surrounding slides.
+
+Return ONLY this JSON:
+{{"title": "Clear section title (max 80 chars)", "bullets": ["Bullet 1 (max 150 chars)", "Bullet 2", "Bullet 3", "Bullet 4"]}}
+
+Title should be: {slide_info['title']}
+Create 3-5 bullets that flow logically and connect to the overall presentation arc.
+{f'Extract and organize content from the source material above.' if content_data else ''}
+""",
+
+        'imageAndParagraph': f"""
+{presentation_context}
+
+Create detailed content that fits naturally in the presentation flow.
+
+Return ONLY this JSON:
+{{"title": "Descriptive title (max 80 chars)", "imageDescription": "Detailed image description (max 400 chars)", "paragraph": "Comprehensive explanation (max 400 chars)"}}
+
+Title should be: {slide_info['title']}
+Content should build on previous slides and prepare for upcoming content.
+{f'Use relevant content from the source material to create an engaging paragraph.' if content_data else ''}
+""",
+
+        'conclusion': f"""
+{presentation_context}
+
+Create a strong conclusion that ties together the entire presentation.
+
+Return ONLY this JSON:
+{{"title": "Conclusion title (max 60 chars)", "summary": "Summary that reinforces key message (max 200 chars)", "nextSteps": ["Action 1 (max 50 chars)", "Action 2", "Action 3"]}}
+
+Summarize the journey and provide clear, actionable next steps that align with the presentation objective.
+{f'Draw conclusions from the source content and suggest practical next steps.' if content_data else ''}
+""",
+
+        'twoColumn': f"""
+{presentation_context}
+
+Create a two-column layout that presents complementary or contrasting information.
+
+Return ONLY this JSON:
+{{"title": "Comparison title (max 80 chars)", "column1Title": "Left column title (max 60 chars)", "column1Content": "Left content (max 300 chars)", "column2Title": "Right column title (max 60 chars)", "column2Content": "Right content (max 300 chars)"}}
+
+Title should be: {slide_info['title']}
+{f'Organize the source content into two logical sections that support the slide purpose.' if content_data else ''}
+""",
+
+        'quote': f"""
+{presentation_context}
+
+Create an impactful quote that reinforces the presentation message.
+
+Return ONLY this JSON:
+{{"quote": "Meaningful quote (max 200 chars)", "author": "Source or context (max 50 chars)"}}
+
+{f'Extract a powerful quote from the source content or create one that captures its essence.' if content_data else 'Create an inspirational quote that fits the presentation theme.'}
+""",
+
+        'timeline': f"""
+{presentation_context}
+
+Create a timeline showing progression or development over time.
+
+Return ONLY this JSON:
+{{"title": "Timeline title (max 60 chars)", "events": [{{"year": "2020", "title": "Event name (max 40 chars)", "description": "Description (max 100 chars)"}}, {{"year": "2023", "title": "Event name", "description": "Description"}}]}}
+
+Title should be: {slide_info['title']}
+Focus on recent developments (2015-2025) and create a logical progression.
+{f'Extract chronological information from the source content.' if content_data else ''}
+"""
+    }
+    
+    prompt = layout_prompts.get(layout, f"""
+{presentation_context}
+
+Create appropriate {layout} content that fits the presentation flow.
+Title should be: {slide_info['title']}
+Return valid JSON only.
+""")
+    
+    try:
+        response = requests.post(
+            OLLAMA_API_URL,
+            json={
+                "model": "llama3.1:8b",
+                "prompt": prompt,
+                "stream": False,
+                "format": "json",
+                "options": {
+                    "temperature": 0.3,
+                    "top_p": 0.9,
+                    "repeat_penalty": 1.1
+                }
+            }
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            generated_text = result.get("response", "")
+            
+            try:
+                content_result = json.loads(generated_text)
+                
+                # Process content with enhanced context
+                content_result['topic'] = full_outline['presentation_meta']['title']
+                content_result['slide_index'] = slide_number
+                content_result['total_slides'] = total_slides
+                content_result['processing_mode'] = processing_mode
+                
+                return process_content_for_layout(content_result, layout)
+                
+            except json.JSONDecodeError:
+                logger.warning(f"JSON decode error for enhanced slide {slide_number}")
+                
+    except Exception as e:
+        logger.error(f"Error generating enhanced slide {slide_number}: {e}")
+    
+    # Enhanced fallback content generation
+    return generate_enhanced_fallback_content(layout, slide_info, content_data, processing_mode)
+
+def extract_relevant_content_for_slide(content_data, slide_info, slide_number, total_slides):
+    """Extract relevant content section for a specific slide"""
+    
+    if not content_data or not content_data.get('full_text'):
+        return None
+    
+    full_text = content_data['full_text']
+    
+    # Simple content sectioning based on slide position
+    if total_slides <= 3:
+        # For short presentations, use larger sections
+        if slide_number == 1:
+            return full_text[:1500]
+        elif slide_number == total_slides:
+            return full_text[-1000:]
+        else:
+            mid_point = len(full_text) // 2
+            return full_text[mid_point-500:mid_point+500]
+    else:
+        # For longer presentations, divide more evenly
+        content_slides = total_slides - 2  # Exclude title and conclusion
+        if slide_number == 1:  # Title slide
+            return full_text[:800]
+        elif slide_number == total_slides:  # Conclusion slide
+            return full_text[-1000:]
+        else:
+            # Content slides
+            section_index = slide_number - 2
+            section_size = len(full_text) // content_slides
+            start_pos = section_index * section_size
+            end_pos = min(len(full_text), start_pos + section_size + 500)  # Add overlap
+            return full_text[start_pos:end_pos]
+
+def validate_outline_structure_enhanced(outline, expected_slides):
+    """Enhanced validation for outline structure"""
+    try:
+        # Check required top-level keys
+        if not all(key in outline for key in ['presentation_meta', 'slide_structure']):
+            return False
+        
+        # Check presentation meta
+        meta = outline['presentation_meta']
+        required_meta = ['title', 'objective', 'target_audience', 'key_message']
+        if not all(key in meta for key in required_meta):
+            return False
+        
+        # Check slide structure
+        slides = outline['slide_structure']
+        if not isinstance(slides, list) or len(slides) < 1:
+            return False
+        
+        # Validate each slide
+        required_slide_keys = ['slide_number', 'layout', 'title', 'purpose', 'context', 'transitions']
+        for slide in slides:
+            if not isinstance(slide, dict):
+                return False
+            
+            if not all(key in slide for key in required_slide_keys):
+                return False
+            
+            # Check transitions structure
+            transitions = slide['transitions']
+            if not isinstance(transitions, dict):
+                return False
+            
+            if not all(key in transitions for key in ['from_previous', 'to_next']):
+                return False
+        
+        return True
+        
+    except Exception:
+        return False
+
+    """Create enhanced fallback outline with content context"""
+    
+    slide_structure = []
+    
+    # Title slide
+    slide_structure.append({
+        "slide_number": 1,
+        "layout": "titleOnly",
+        "title": topic,
+        "purpose": "Introduction",
+        "key_points": ["Welcome", "Overview"],
+        "context": f"Opening slide introducing the {input_method} presentation",
+        "transitions": {
+            "from_previous": None,
+            "to_next": "Setting the foundation for our discussion"
+        }
+    })
+    
+    # Content slides with varied layouts
+    content_layouts = ["titleAndBullets", "imageAndParagraph", "twoColumn", "quote"]
+    
+    for i in range(1, slide_count - 1):
+        slide_num = i + 1
+        layout = content_layouts[(i - 1) % len(content_layouts)]
+        
+        slide_structure.append({
+            "slide_number": slide_num,
+            "layout": layout,
+            "title": f"Key Aspect {i} of {topic}",
+            "purpose": f"Explore important element {i}",
+            "key_points": [f"Point {i}.1", f"Point {i}.2", f"Point {i}.3"],
+            "context": f"Detailed exploration of aspect {i} from {input_method}",
+            "transitions": {
+                "from_previous": "Building on previous concepts",
+                "to_next": "Leading into next key area" if i < slide_count - 2 else "Moving toward conclusion"
+            }
+        })
+    
+    # Conclusion slide
+    if slide_count > 1:
+        slide_structure.append({
+            "slide_number": slide_count,
+            "layout": "conclusion",
+            "title": f"Key Takeaways from {topic}",
+            "purpose": "Conclusion and next steps",
+            "key_points": ["Summary", "Next steps", "Call to action"],
+            "context": f"Wrapping up insights from {input_method} and providing clear next steps",
+            "transitions": {
+                "from_previous": "Bringing together all our discussions",
+                "to_next": None
+            }
+        })
+    
+    # Enhanced metadata based on input method
+    if input_method == 'text':
+        objective = f"Present and organize the key insights from the provided text about {topic}"
+        audience = "Readers interested in the text content"
+    elif input_method == 'document':
+        objective = f"Communicate the main findings and recommendations from the document about {topic}"
+        audience = "Stakeholders and decision-makers"
+    else:
+        objective = f"Provide comprehensive overview and analysis of {topic}"
+        audience = "General audience interested in the topic"
     
     return {
-        'slides': slides,
-        'template': template_id,
-        'processing_mode': processing_mode,
-        'document_analysis': analysis_data,
-        'slide_count': len(slides)
+        "presentation_meta": {
+            "title": topic,
+            "objective": objective,
+            "target_audience": audience,
+            "key_message": f"Understanding {topic} and its key implications"
+        },
+        "slide_structure": slide_structure
     }

@@ -1,0 +1,59 @@
+<!-- templates/create.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create with AI - SlideWay</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/create.css') }}">
+</head>
+<body>
+    <div class="create-container">
+        <header class="create-header">
+            <div class="logo">
+                <h1>SlideWay AI</h1>
+            </div>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Dashboard
+            </a>
+        </header>
+
+        <main class="create-main">
+            <div class="create-hero">
+                <h1>Create with AI</h1>
+                <p>How would you like to get started?</p>
+            </div>
+
+            <div class="method-cards">
+                <div class="method-card" data-method="text">
+                    <div class="card-icon">
+                        <i class="fas fa-file-text"></i>
+                    </div>
+                    <h3>Paste in text</h3>
+                    <p>Create from notes, an outline, or existing content</p>
+                </div>
+
+                <div class="method-card popular" data-method="topic">
+                    <div class="card-icon">
+                        <i class="fas fa-magic"></i>
+                    </div>
+                    <h3>Generate</h3>
+                    <p>Create from a one-line prompt in a few seconds</p>
+                    <span class="popular-badge">POPULAR</span>
+                </div>
+
+                <div class="method-card" data-method="upload">
+                    <div class="card-icon">
+                        <i class="fas fa-file-upload"></i>
+                    </div>
+                    <h3>Import file or URL</h3>
+                    <p>Enhance existing docs, presentations, or webpages</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/create.js') }}"></script>
+</body>
+</html>

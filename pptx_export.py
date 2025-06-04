@@ -6,9 +6,9 @@ from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 from pptx.dml.color import RGBColor
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.enum.text import MSO_AUTO_SIZE
-from content_utils import process_content_for_layout
-
-
+import tkinter as tk
+from tkinter import filedialog
+from pptx.enum.text import MSO_AUTO_SIZE
 import textwrap
 
 def hex_to_rgb(hex_color):
@@ -420,19 +420,16 @@ def create_presentation(filename, slides, template_id):
 
 def create_title_only_slide(presentation, content, template):
     """Create a title-only slide that matches the preview slide exactly"""
-    slide_layout = presentation.slide_layouts[0]  # Title Slide layout
+    slide_layout = presentation.slide_layouts[0]  
     slide = presentation.slides.add_slide(slide_layout)
     
-    # Apply template
     template = apply_template_to_slide(slide, template)
     
-    # Get title text
     title_text = clean_text_content(content.get('title', 'Title'))
     subtitle_text = clean_text_content(content.get('subtitle', 'Subtitle'))
     
-    # Create a title textbox with adjusted positioning (reduced space from top)
     left = Inches(1.0)
-    top = Inches(0.5)  # Reduced from 2.0 to 1.2 inches from top
+    top = Inches(0.5)  
     width = Inches(9.0)
     height = Inches(1.5)
     
@@ -440,21 +437,19 @@ def create_title_only_slide(presentation, content, template):
     text_frame = title_box.text_frame
     text_frame.word_wrap = True
     
-    # Add title text with smaller font size
     p = text_frame.add_paragraph()
     p.text = title_text
     apply_text_formatting(
         p, 
-        font_size=34,  # Reduced from 54 to 44
+        font_size=34,  
         color=template['colors']['primary'],
         font_name=template['font'],
         bold=True,
         alignment=PP_ALIGN.CENTER
     )
     
-    # Add subtitle with adjusted positioning
     subtitle_left = Inches(1.0)
-    subtitle_top = Inches(2.5)  # Reduced from 3.8 to 3.0
+    subtitle_top = Inches(2.5)  
     subtitle_width = Inches(8.0)
     subtitle_height = Inches(1.0)
     
@@ -462,12 +457,11 @@ def create_title_only_slide(presentation, content, template):
     text_frame = subtitle_box.text_frame
     text_frame.word_wrap = True
     
-    # Add subtitle text with smaller font
     p = text_frame.add_paragraph()
     p.text = subtitle_text
     apply_text_formatting(
         p, 
-        font_size=24,  # Reduced from 32 to 26
+        font_size=24,  
         color=template['colors']['secondary'],
         font_name=template['font'],
         alignment=PP_ALIGN.CENTER
@@ -477,7 +471,6 @@ def create_title_only_slide(presentation, content, template):
 
 
 
-#updated responsive fucntions 
 def create_timeline_slide(presentation, content, template):
     """Create a slide with a chronological timeline with adaptive sizing"""
     slide_layout = presentation.slide_layouts[6]  # Blank layout
@@ -635,24 +628,20 @@ def create_timeline_slide(presentation, content, template):
 
 def create_conclusion_slide(presentation, content, template):
     """Create a conclusion slide with adaptive sizing"""
-    slide_layout = presentation.slide_layouts[6]  # Blank layout
+    slide_layout = presentation.slide_layouts[6]  
     slide = presentation.slides.add_slide(slide_layout)
-    # Apply template
     template = apply_template_to_slide(slide, template)
 
-    # Get content with no truncation
     title = clean_text_content(content.get('title', 'Key Takeaways'))
     summary = clean_text_content(content.get('summary', ''))
     nextSteps = content.get('nextSteps', [])
 
-    # Calculate dynamic font sizes based on content length
     title_length = len(title)
     summary_length = len(summary)
 
     title_font_size = max(16, min(20, int(20 * (40 / max(40, title_length)))))
     summary_font_size = max(12, min(16, int(16 * (150 / max(150, summary_length)))))
 
-    # Add title
     left = Inches(0.1)
     top = Inches(0.1)
     width = Inches(9)
@@ -660,7 +649,6 @@ def create_conclusion_slide(presentation, content, template):
 
     title_box = slide.shapes.add_textbox(left, top, width, height)
     text_frame = title_box.text_frame
-    # Enable text wrapping for title
     text_frame.word_wrap = True
     text_frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
 
@@ -675,11 +663,9 @@ def create_conclusion_slide(presentation, content, template):
         alignment=PP_ALIGN.LEFT
     )
 
-    # Add summary paragraph
     summary_top = Inches(1)
     summary_box = slide.shapes.add_textbox(left, summary_top, width, Inches(1.5))
     text_frame = summary_box.text_frame
-    # Enable text wrapping for summary
     text_frame.word_wrap = True
     text_frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
 
@@ -693,9 +679,7 @@ def create_conclusion_slide(presentation, content, template):
         alignment=PP_ALIGN.LEFT
     )
 
-    # Add next steps if present
     if nextSteps:
-        # Moved further down from 2 to 2.5 inches
         steps_top = Inches(2.1)
         steps_title_box = slide.shapes.add_textbox(left, steps_top, width, Inches(0.5))
         text_frame = steps_title_box.text_frame
@@ -711,16 +695,13 @@ def create_conclusion_slide(presentation, content, template):
             alignment=PP_ALIGN.LEFT
         )
         
-        # Add the steps as bullet points
         steps_box = slide.shapes.add_textbox(left, steps_top + Inches(0.7), width, Inches(1.8))
         text_frame = steps_box.text_frame
-        # Enable text wrapping for bullet points
         text_frame.word_wrap = True
         
         for i, step in enumerate(nextSteps):
             step_text = clean_text_content(step)
             
-            # Calculate dynamic font size for step
             step_length = len(step_text)
             step_font_size = max(10, min(12, int(12 * (50 / max(50, step_length)))))
             
@@ -735,8 +716,7 @@ def create_conclusion_slide(presentation, content, template):
             )
             p.level = 0
             
-            # Add space between pointers by adding space after each paragraph
-            p.space_after = Pt(12)  # Adding 12 points of space after each bullet point
+            p.space_after = Pt(12)  
 
     return slide
 
@@ -1439,7 +1419,6 @@ def create_side_by_side_comparison_slide(presentation, content, template):
 
     return slide
     ## 3. Updates to `pptx_export.py`
-from pptx.enum.text import MSO_AUTO_SIZE
 
 def create_title_and_bullets_slide(presentation, content, template):
     """Create a slide with title and bullet points that adapts to content length"""
@@ -1836,8 +1815,6 @@ def create_two_column_slide(presentation, content, template):
     return slide# Responsive PPT Generator Code Updates
 
 
-import tkinter as tk
-from tkinter import filedialog
 
 def export_pptx_local():
     data = request.json
@@ -1846,7 +1823,6 @@ def export_pptx_local():
     topic = data.get('topic', 'presentation')
 
     try:
-        # Create a new Tkinter root for each request
         root = tk.Tk()
         root.withdraw()  # Hide the main window
         

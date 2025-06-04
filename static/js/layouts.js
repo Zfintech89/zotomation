@@ -1582,71 +1582,71 @@ function getLayoutById(layoutId) {
     return layouts.find(layout => layout.id === layoutId) || null;
 }
 
-function showLayoutSelector() {
-    const currentSlide = appState.slides[appState.currentSlideIndex];
-    if (!currentSlide) return;
+// function showLayoutSelector() {
+//     const currentSlide = appState.slides[appState.currentSlideIndex];
+//     if (!currentSlide) return;
     
-    const editForm = document.getElementById('edit-form');
-    const slidePreview = document.getElementById('slide-preview');
+//     const editForm = document.getElementById('edit-form');
+//     const slidePreview = document.getElementById('slide-preview');
     
-    // Create the layout selector
-    const layouts = window.ppgLayouts.layouts;
+//     // Create the layout selector
+//     const layouts = window.ppgLayouts.layouts;
     
-    let layoutOptionsHtml = '<div class="layout-options">';
-    layouts.forEach(layout => {
-        layoutOptionsHtml += `
-            <div class="layout-option ${layout.id === currentSlide.layout ? 'selected' : ''}" 
-                 data-layout="${layout.id}">
-                <div class="layout-icon"><i class="fas ${layout.icon}"></i></div>
-                <div class="layout-info">
-                    <h4>${layout.name}</h4>
-                    <p>${layout.description}</p>
-                </div>
-            </div>
-        `;
-    });
-    layoutOptionsHtml += '</div>';
+//     let layoutOptionsHtml = '<div class="layout-options">';
+//     layouts.forEach(layout => {
+//         layoutOptionsHtml += `
+//             <div class="layout-option ${layout.id === currentSlide.layout ? 'selected' : ''}" 
+//                  data-layout="${layout.id}">
+//                 <div class="layout-icon"><i class="fas ${layout.icon}"></i></div>
+//                 <div class="layout-info">
+//                     <h4>${layout.name}</h4>
+//                     <p>${layout.description}</p>
+//                 </div>
+//             </div>
+//         `;
+//     });
+//     layoutOptionsHtml += '</div>';
     
-    // Create the full selector form
-    const formHtml = `
-        <div class="layout-selector">
-            <h2>Change Slide Layout</h2>
-            <p class="warning">Changing layout will reset the slide content. Save any important content first.</p>
+//     // Create the full selector form
+//     const formHtml = `
+//         <div class="layout-selector">
+//             <h2>Change Slide Layout</h2>
+//             <p class="warning">Changing layout will reset the slide content. Save any important content first.</p>
             
-            ${layoutOptionsHtml}
+//             ${layoutOptionsHtml}
             
-            <div class="layout-selector-actions">
-                <button id="change-layout-btn" class="btn btn-primary">Change Layout</button>
-                <button id="cancel-layout-btn" class="btn btn-secondary">Cancel</button>
-            </div>
-        </div>
-    `;
+//             <div class="layout-selector-actions">
+//                 <button id="change-layout-btn" class="btn btn-primary">Change Layout</button>
+//                 <button id="cancel-layout-btn" class="btn btn-secondary">Cancel</button>
+//             </div>
+//         </div>
+//     `;
     
-    // Set the form content
-    editForm.innerHTML = formHtml;
+//     // Set the form content
+//     editForm.innerHTML = formHtml;
     
-    // Show the form and hide the preview
-    editForm.classList.remove('hidden');
-    slidePreview.classList.add('hidden');
+//     // Show the form and hide the preview
+//     editForm.classList.remove('hidden');
+//     slidePreview.classList.add('hidden');
     
-    // Mark that we're in layout selection mode
-    appState.editMode = 'layout';
+//     // Mark that we're in layout selection mode
+//     appState.editMode = 'layout';
     
-    // Add event listeners
-    document.getElementById('change-layout-btn').addEventListener('click', changeLayout);
-    document.getElementById('cancel-layout-btn').addEventListener('click', cancelEdit);
+//     // Add event listeners
+//     document.getElementById('change-layout-btn').addEventListener('click', changeLayout);
+//     document.getElementById('cancel-layout-btn').addEventListener('click', cancelEdit);
     
-    // Add click events to layout options
-    const layoutOptions = document.querySelectorAll('.layout-option');
-    layoutOptions.forEach(option => {
-        option.addEventListener('click', () => {
-            // Deselect all options
-            layoutOptions.forEach(opt => opt.classList.remove('selected'));
-            // Select the clicked option
-            option.classList.add('selected');
-        });
-    });
-}
+//     // Add click events to layout options
+//     const layoutOptions = document.querySelectorAll('.layout-option');
+//     layoutOptions.forEach(option => {
+//         option.addEventListener('click', () => {
+//             // Deselect all options
+//             layoutOptions.forEach(opt => opt.classList.remove('selected'));
+//             // Select the clicked option
+//             option.classList.add('selected');
+//         });
+//     });
+// }
 
 // Change the current slide's layout
 function changeLayout() {

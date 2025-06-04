@@ -1,13 +1,14 @@
 from flask import Flask, request, jsonify, render_template, send_file, session, redirect, url_for
 from models import db, User, Presentation as PresentationModel, Slide
 from auth import auth_bp, login_required
-from pptx_export import export_pptx_local, hex_to_rgb, parse_template_colors, apply_template_to_slide, apply_text_formatting, clean_text_content
-from text_extraction_utils import process_uploaded_file, analyze_text_content, chunk_text
+from pptx_export import export_pptx_local
+from text_extraction_utils import process_uploaded_file, analyze_text_content, chunk_text, detect_headings_and_structure
 import model_downloader
 from ollama_client import (
-    generate_content, 
-    split_text_for_slides,
-    generate_content_from_extracted_text
+    generate_presentation_outline,
+    generate_slides_from_outline,
+    generate_presentation_outline_enhanced,
+    generate_slides_from_outline_enhanced
 )
 from content_utils import process_content_for_layout
 import re
@@ -19,7 +20,6 @@ import tempfile
 import logging
 import calendar
 import textwrap
-
 from datetime import datetime, timedelta, timezone as dt_timezone
 from pytz import timezone as pytz_timezone
 from collections import Counter
@@ -324,58 +324,6 @@ def manage_slides(presentation_id):
             'message': 'Slide deleted successfully'
         })
 
-def generate_default_content(layout, topic):
-    """Generate default content for a slide layout"""
-    defaults = {
-        'titleOnly': {
-            'title': topic,
-            'subtitle': 'Presentation Overview'
-        },
-        'titleAndBullets': {
-            'title': f'Key Points about {topic}',
-            'bullets': [
-                'First key point',
-                'Second key point',
-                'Third key point'
-            ]
-        },
-        'quote': {
-            'quote': f'Inspirational quote about {topic}',
-            'author': 'Author Name'
-        },
-        'imageAndParagraph': {
-            'title': f'About {topic}',
-            'imageDescription': 'Image',
-            'paragraph': f'Descriptive paragraph about {topic}'
-        },
-        'twoColumn': {
-            'title': f'{topic} Overview',
-            'column1Title': 'First Aspect',
-            'column1Content': 'Content for first column',
-            'column2Title': 'Second Aspect',
-            'column2Content': 'Content for second column'
-        },
-        'imageWithFeatures': {
-            'title': f'Features of {topic}',
-            'imageDescription': 'Image',
-            'features': [
-                {'title': 'Feature 1', 'description': 'Description of feature 1'},
-                {'title': 'Feature 2', 'description': 'Description of feature 2'},
-                {'title': 'Feature 3', 'description': 'Description of feature 3'},
-                {'title': 'Feature 4', 'description': 'Description of feature 4'}
-            ]
-        },
-        'timeline': {
-            'title': f'Evolution of {topic}',
-            'events': [
-                {'year': '2000', 'title': 'First Event', 'description': 'Description of first event'},
-                {'year': '2010', 'title': 'Second Event', 'description': 'Description of second event'},
-                {'year': '2020', 'title': 'Third Event', 'description': 'Description of third event'}
-            ]
-        }
-    }
-    
-    return defaults.get(layout, {})
 
 @app.route('/analytics')
 @login_required
@@ -497,12 +445,210 @@ def dashboard():
                           username=username,
                           presentations=presentations,
                           recent_count=recent_count,
-                          fav_template=fav_template)
-
+                          fav_template=fav_template,
+                          create_url=url_for('create'))
+# Update your editor route in app.py
 @app.route('/editor')
 @login_required
 def editor():
-    return render_template('editor.html')
+    # Check if this is a generated presentation
+    generated = request.args.get('generated', 'false').lower() == 'true'
+    return render_template('editor.html', generated=generated)
+
+# Make sure your generate.html template exists and is being served
+@app.route('/create/generate')
+@login_required  
+def generate_page():
+    """Universal generation page based on method"""
+    method = request.args.get('method', 'topic')
+    
+    if method not in ['topic', 'text', 'upload']:
+        return redirect(url_for('create'))
+    
+    return render_template('generate.html', method=method)
+
+# Ensure your outline generation endpoint works
+@app.route('/api/generate-outline', methods=['POST'])
+@login_required
+def generate_outline_enhanced():
+    """Enhanced outline generation supporting all input methods"""
+    try:
+        data = request.json
+        topic = data.get('topic', '').strip()
+        slide_count = int(data.get('slideCount', 5))
+        input_method = data.get('inputMethod', 'topic')
+        
+        logging.info(f"🎯 Generating outline: method={input_method}, topic='{topic}', slides={slide_count}")
+        
+        # Validate common requirements
+        if not topic:
+            return jsonify({'error': 'Topic is required'}), 400
+        
+        if not (1 <= slide_count <= 10):
+            return jsonify({'error': 'Slide count must be between 1 and 10'}), 400
+        
+        # Handle different input methods
+        content_context = None
+        processing_mode = 'generate'
+        
+        if input_method == 'text':
+            text_content = data.get('textContent', '')
+            text_stats = data.get('textStats', {})
+            
+            if not text_content or len(text_content.strip()) < 50:
+                return jsonify({'error': 'Text content must be at least 50 characters'}), 400
+            
+            content_context = {
+                'type': 'text',
+                'content': text_content,
+                'stats': text_stats,
+                'word_count': len(text_content.split()),
+                'char_count': len(text_content)
+            }
+            processing_mode = 'preserve'
+            
+        elif input_method == 'upload':
+            document_content = data.get('documentContent', '')
+            document_stats = data.get('documentStats', {})
+            processing_mode = data.get('processingMode', 'preserve')
+            
+            if not document_content or len(document_content.strip()) < 50:
+                return jsonify({'error': 'Document content must be at least 50 characters'}), 400
+            
+            content_context = {
+                'type': 'document',
+                'content': document_content,
+                'stats': document_stats,
+                'processing_mode': processing_mode,
+                'word_count': len(document_content.split()),
+                'char_count': len(document_content)
+            }
+        
+        # Generate outline with content context
+        outline = generate_presentation_outline_enhanced(
+            topic=topic,
+            slide_count=slide_count,
+            input_method=input_method,
+            content_context=content_context,
+            processing_mode=processing_mode
+        )
+        
+        if not outline:
+            return jsonify({'error': 'Failed to generate outline'}), 500
+        
+        # Add generation metadata
+        outline['generation_metadata'] = {
+            'input_method': input_method,
+            'processing_mode': processing_mode,
+            'content_stats': content_context.get('stats', {}) if content_context else {},
+            'generated_at': datetime.now().isoformat(),
+            'slide_count_requested': slide_count,
+            'slide_count_generated': len(outline.get('slide_structure', []))
+        }
+        
+        logging.info(f"✅ Enhanced outline generated: {len(outline['slide_structure'])} slides from {input_method}")
+        
+        return jsonify({
+            'outline': outline,
+            'message': f'Outline generated successfully from {input_method}',
+            'input_method': input_method,
+            'processing_mode': processing_mode
+        })
+        
+    except Exception as e:
+        logging.error(f"❌ Error in enhanced outline generation: {e}")
+        return jsonify({'error': f'Outline generation failed: {str(e)}'}), 500
+
+# Ensure your slide generation from outline works
+@app.route('/api/generate-from-outline', methods=['POST'])
+@login_required
+def generate_from_outline_enhanced():
+    """Enhanced slide generation from outline with content context"""
+    try:
+        data = request.json
+        outline = data.get('outline')
+        template_id = data.get('template')
+        content_data = data.get('contentData')  # Original content for context
+        processing_mode = data.get('processingMode', 'preserve')
+        
+        if not outline or not template_id:
+            return jsonify({'error': 'Outline and template are required'}), 400
+        
+        # Extract metadata
+        generation_metadata = outline.get('generation_metadata', {})
+        input_method = generation_metadata.get('input_method', 'topic')
+        
+        logging.info(f"🎨 Generating slides from outline: method={input_method}, slides={len(outline['slide_structure'])}")
+        
+        # Generate slides with enhanced context
+        slides = generate_slides_from_outline_enhanced(
+            outline=outline,
+            template_id=template_id,
+            content_data=content_data,
+            processing_mode=processing_mode
+        )
+        
+        if not slides:
+            return jsonify({'error': 'Failed to generate slides from outline'}), 500
+        
+        logging.info(f"✅ Generated {len(slides)} slides from enhanced outline")
+        
+        return jsonify({
+            'slides': slides,
+            'template': template_id,
+            'outline': outline,
+            'slide_count': len(slides),
+            'generation_method': f'{input_method}-outline-based',
+            'processing_mode': processing_mode,
+            'input_method': input_method,
+            'content_preserved': content_data is not None
+        })
+        
+    except Exception as e:
+        logging.error(f"❌ Error generating slides from enhanced outline: {e}")
+        return jsonify({'error': f'Slide generation failed: {str(e)}'}), 500
+
+@app.route('/api/generate-presentation', methods=['POST'])
+@login_required
+def generate_presentation_new_flow():
+    """Generate presentation using the new outline → theme → slides flow"""
+    try:
+        data = request.json
+        method = data.get('method', 'topic')
+        outline = data.get('outline')
+        template_id = data.get('template')
+        
+        if not outline or not template_id:
+            return jsonify({'error': 'Outline and template are required'}), 400
+        
+        # Generate slides from outline
+        if method in ['text', 'upload'] and data.get('contentData'):
+            # Use enhanced generation with content context
+            slides = generate_slides_from_outline_enhanced(
+                outline=outline,
+                template_id=template_id,
+                content_data=data.get('contentData'),
+                processing_mode=data.get('processingMode', 'preserve')
+            )
+        else:
+            # Use standard outline-based generation
+            slides = generate_slides_from_outline(outline, template_id)
+        
+        if not slides:
+            return jsonify({'error': 'Failed to generate slides from outline'}), 500
+        
+        return jsonify({
+            'slides': slides,
+            'template': template_id,
+            'outline': outline,
+            'slide_count': len(slides),
+            'generation_method': f'{method}-outline-based',
+            'success': True
+        })
+        
+    except Exception as e:
+        logging.error(f"Error in new presentation generation flow: {e}")
+        return jsonify({'error': f'Presentation generation failed: {str(e)}'}), 500
 
 @app.route('/editor/<int:presentation_id>')
 @login_required
@@ -668,381 +814,6 @@ def edit_existing_presentation(presentation_id):
         print(f"Error loading presentation: {e}")
         return redirect(url_for('dashboard'))
 
-def generate_slides_from_analyzed_structure_with_mode(full_text, topic, template_id, slide_count, slide_structure, processing_mode='preserve'):
-    """Generate slides based on Ollama's structural analysis with content preservation"""
-    slides = []
-    
-    # FIX: Ensure slide_count is not None
-    if slide_count is None:
-        # Use slide_structure length as fallback
-        if slide_structure and isinstance(slide_structure, list):
-            slide_count = len(slide_structure)
-        else:
-            slide_count = 5  # Default fallback
-    
-    # FIX: Ensure slide_structure exists
-    if not slide_structure or not isinstance(slide_structure, list):
-        # Generate fallback structure
-        slide_structure = generate_fallback_slide_structure(slide_count, topic)
-    
-    # Split text into sections based on determined slide count
-    content_slides_needed = max(0, slide_count - 2)  # Exclude title and conclusion
-    text_sections = split_text_for_slides(full_text, content_slides_needed) if content_slides_needed > 0 else []
-    
-    for structure_item in slide_structure:
-        slide_number = structure_item.get('slide_number', 1)
-        layout = structure_item.get('layout', 'titleOnly')
-        purpose = structure_item.get('purpose', '')
-        
-        if layout == 'titleOnly':
-            # Generate title slide using preserve mode
-            content = generate_content_from_text('titleOnly', topic, full_text[:500], slide_number, slide_count, 'preserve')
-            
-            # Ensure title content
-            if 'title' not in content or not content['title']:
-                content['title'] = topic.capitalize()
-            if 'subtitle' not in content or not content['subtitle']:
-                content['subtitle'] = "Document Analysis and Key Insights"
-            
-            slides.append({
-                'layout': 'titleOnly',
-                'content': content
-            })
-            
-        elif layout == 'conclusion':
-            # Generate conclusion slide using source text
-            conclusion_text = full_text[-1000:] if len(full_text) > 1000 else full_text
-            content = generate_content_from_text(
-                'conclusion', topic, conclusion_text, slide_number, slide_count, processing_mode
-            )
-            slides.append({
-                'layout': 'conclusion',
-                'content': content
-            })
-            
-        else:
-            # Generate content slide using appropriate text section with preservation
-            section_index = slide_number - 2  # Adjust for title slide
-            if section_index >= 0 and section_index < len(text_sections):
-                section_text = text_sections[section_index]
-            else:
-                # Fallback to portion of full text
-                portion_size = len(full_text) // max(1, content_slides_needed)
-                start_pos = section_index * portion_size
-                end_pos = min(len(full_text), start_pos + portion_size)
-                section_text = full_text[start_pos:end_pos] if start_pos < len(full_text) else full_text
-            
-            content = generate_content_from_text(
-                layout, topic, section_text, slide_number, slide_count, processing_mode
-            )
-            slides.append({
-                'layout': layout,
-                'content': content
-            })
-    
-    logging.info(f"Generated {len(slides)} slides in {processing_mode} mode based on Ollama structure analysis")
-    return slides
-
-def generate_fallback_slide_structure(slide_count, topic):
-    """Generate fallback slide structure when Ollama analysis fails"""
-    available_layouts = [
-        "titleAndBullets", "imageAndParagraph", "twoColumn",
-        "imageWithFeatures", "numberedFeatures", "timeline"
-    ]
-    
-    structure = []
-    
-    structure.append({
-        "slide_number": 1,
-        "layout": "titleOnly", 
-        "purpose": "Introduction",
-        "main_content": f"Title and overview of {topic}"
-    })
-    
-    for i in range(2, slide_count):
-        layout = available_layouts[(i-2) % len(available_layouts)]
-        structure.append({
-            "slide_number": i,
-            "layout": layout,
-            "purpose": f"Content section {i-1}",
-            "main_content": f"Main topic {i-1} from document"
-        })
-    
-    if slide_count > 2:
-        structure.append({
-            "slide_number": slide_count,
-            "layout": "conclusion",
-            "purpose": "Summary and conclusions", 
-            "main_content": "Key takeaways and next steps"
-        })
-    
-    return structure
-
-from ollama_client import extract_clean_json, generate_content, generate_content_from_text
-
-def generate_intelligent_slide_structure_fixed(slide_count, doc_structure):
-    """Generate slide structure with better content distribution"""
-    
-    structure = []
-    sections = list(doc_structure['key_sections'].keys())
-    
-    logging.info(f"Generating structure for {slide_count} slides with {len(sections)} sections")
-    
-    # Always start with title slide
-    structure.append({
-        "slide_number": 1,
-        "layout": "titleOnly",
-        "purpose": "Document title and overview"
-    })
-    
-    # Determine content slides
-    content_slides = slide_count - 2  # Exclude title and conclusion
-    
-    if content_slides > 0:
-        # FIXED: Limit content slides to available unique sections
-        max_content_slides = min(content_slides, len(sections))
-        
-        for i in range(max_content_slides):
-            slide_num = i + 2
-            
-            # Choose layout based on content and position
-            if i == 0 and doc_structure['paragraphs']:
-                # First content slide as overview paragraph
-                layout = "imageAndParagraph"
-            elif len(sections) > i and sections[i] in doc_structure['bullet_sections']:
-                # Use bullets if section has bullet points
-                layout = "titleAndBullets"
-            elif i == max_content_slides - 1 and max_content_slides > 1:
-                # Last content slide as two-column
-                layout = "twoColumn"
-            else:
-                # Default to bullets
-                layout = "titleAndBullets"
-            
-            structure.append({
-                "slide_number": slide_num,
-                "layout": layout,
-                "purpose": f"Content section: {sections[i] if i < len(sections) else 'Additional content'}"
-            })
-        
-        # Adjust total slide count if we have fewer content slides
-        actual_slide_count = max_content_slides + 2  # +2 for title and conclusion
-    else:
-        actual_slide_count = slide_count
-    
-    # Always end with conclusion if more than 2 slides
-    if actual_slide_count > 2:
-        structure.append({
-            "slide_number": actual_slide_count,
-            "layout": "conclusion",
-            "purpose": "Summary and next steps"
-        })
-    
-    logging.info(f"Final structure: {len(structure)} slides")
-    return structure, actual_slide_count
-
-
-
-@app.route('/api/generate-from-content', methods=['POST'])
-def generate_from_content():
-    try:
-        data = request.json
-        content_data = data.get('content')
-        template_id = data.get('template')
-        topic = data.get('topic', 'Document Summary')
-        processing_mode = data.get('processing_mode', 'preserve')  # Get processing mode
-        
-        logging.info(f"🔄 Starting enhanced document processing: mode={processing_mode}, topic='{topic}'")
-        
-        if not content_data or not template_id:
-            return jsonify({'error': 'Missing required data'}), 400
-        
-        full_text = content_data.get('full_text', '')
-        
-        if not full_text:
-            return jsonify({'error': 'No text content found'}), 400
-        
-        # Clean text and validate
-        meaningful_text = re.sub(r'\[Page \d+\]', '', full_text).strip()
-        
-        if len(meaningful_text) < 50:
-            return jsonify({
-                'error': 'Insufficient meaningful content extracted from document.',
-                'extracted_length': len(meaningful_text)
-            }), 400
-        
-        logging.info(f"📄 Processing {len(meaningful_text)} characters in {processing_mode} mode")
-        
-        # Use the enhanced document processing approach
-        from ollama_client import generate_slides_from_full_document
-        
-        result = generate_slides_from_full_document(
-            full_text=meaningful_text,
-            topic=topic,
-            template_id=template_id,
-            processing_mode=processing_mode
-        )
-        
-        slides = result['slides']
-        document_analysis = result.get('document_analysis', {})
-        
-        if not slides:
-            logging.error("❌ No slides generated from document")
-            return jsonify({'error': 'Could not generate any valid slides from document content'}), 500
-        
-        # Prepare comprehensive response
-        response_data = {
-            'slides': slides,
-            'template': template_id,
-            'processing_mode': processing_mode,
-            'slide_count': len(slides),
-            'enhanced_analysis': {
-                'document_analysis_success': result.get('document_analysis', {}).get('success', False),
-                'recommended_slides': document_analysis.get('presentation_plan', {}).get('recommended_slides', len(slides)),
-                'actual_slides': len(slides),
-                'document_themes': document_analysis.get('document_analysis', {}).get('main_themes', []),
-                'document_type': document_analysis.get('document_analysis', {}).get('document_type', 'document'),
-                'complexity_level': document_analysis.get('document_analysis', {}).get('complexity_level', 'medium'),
-                'processing_reasoning': document_analysis.get('presentation_plan', {}).get('reasoning', ''),
-                'processing_mode_used': processing_mode
-            }
-        }
-        
-        # Log success details
-        logging.info(f"✅ Enhanced document processing completed")
-        logging.info(f"   - Mode: {processing_mode}")
-        logging.info(f"   - Generated: {len(slides)} slides")
-        logging.info(f"   - Document type: {document_analysis.get('document_analysis', {}).get('document_type', 'unknown')}")
-        logging.info(f"   - Themes: {', '.join(document_analysis.get('document_analysis', {}).get('main_themes', []))}")
-        
-        # Log slide structure
-        for i, slide in enumerate(slides, 1):
-            layout = slide['layout']
-            content_size = len(str(slide['content']))
-            content_keys = list(slide['content'].keys())
-            logging.info(f"   - Slide {i}: {layout} ({content_size} chars, keys: {content_keys})")
-        
-        return jsonify(response_data)
-        
-    except Exception as e:
-        logging.error(f"❌ Error in enhanced document processing: {e}")
-        import traceback
-        logging.error(f"Full traceback: {traceback.format_exc()}")
-        return jsonify({'error': f'Enhanced document processing failed: {str(e)}'}), 500
-
-def validate_and_filter_slides(slides, source_text):
-    """Validate slides and filter out low-quality ones"""
-    
-    quality_slides = []
-    
-    # Generic content patterns to avoid
-    generic_patterns = [
-        'column 1 content', 'column 2 content',
-        'important benefit from document',
-        'description of feature',
-        'content for first column',
-        'meeting documentation and key discussion points'
-    ]
-    
-    for slide in slides:
-        content = slide.get('content', {})
-        layout = slide.get('layout', '')
-        
-        # Check for generic content
-        is_generic = False
-        content_str = str(content).lower()
-        
-        for pattern in generic_patterns:
-            if pattern in content_str:
-                logging.warning(f"Filtering out generic {layout} slide containing: {pattern}")
-                is_generic = True
-                break
-        
-        # Check for minimum content requirements
-        has_meaningful_content = False
-        
-        if layout == 'titleOnly':
-            has_meaningful_content = content.get('title') and len(content.get('title', '')) > 3
-        elif layout == 'titleAndBullets':
-            bullets = content.get('bullets', [])
-            has_meaningful_content = len(bullets) >= 2 and all(len(str(b)) > 10 for b in bullets[:3])
-        elif layout == 'imageAndParagraph':
-            paragraph = content.get('paragraph', '')
-            has_meaningful_content = len(paragraph) > 50
-        elif layout == 'twoColumn':
-            col1 = content.get('column1Content', '')
-            col2 = content.get('column2Content', '')
-            has_meaningful_content = len(col1) > 20 and len(col2) > 20
-        elif layout == 'conclusion':
-            summary = content.get('summary', '')
-            next_steps = content.get('nextSteps', [])
-            has_meaningful_content = len(summary) > 20 or len(next_steps) >= 2
-        else:
-            has_meaningful_content = True  # Accept other layouts
-        
-        if not is_generic and has_meaningful_content:
-            quality_slides.append(slide)
-        else:
-            logging.info(f"Filtered out {layout} slide - Generic: {is_generic}, Meaningful: {has_meaningful_content}")
-    
-    return quality_slides
-
-def generate_slides_from_analyzed_structure(full_text, topic, template_id, slide_count, slide_structure):
-    """Generate slides based on Ollama's structural analysis"""
-    slides = []
-    
-    # Split text into sections based on determined slide count
-    text_sections = split_text_for_slides(full_text, slide_count - 2)  # Exclude title and conclusion
-    
-    for structure_item in slide_structure:
-        slide_number = structure_item['slide_number']
-        layout = structure_item['layout']
-        purpose = structure_item['purpose']
-        
-        if layout == 'titleOnly':
-            # Generate title slide
-            content = generate_content('titleOnly', topic, slide_index=slide_number, total_slides=slide_count)
-            content['topic'] = topic
-            processed_content = process_content_for_layout(content, 'titleOnly')
-            
-            # Ensure title content
-            if 'title' not in processed_content or not processed_content['title']:
-                processed_content['title'] = topic.capitalize()
-            if 'subtitle' not in processed_content or not processed_content['subtitle']:
-                processed_content['subtitle'] = "Generated from Document Analysis"
-            
-            slides.append({
-                'layout': 'titleOnly',
-                'content': processed_content
-            })
-            
-        elif layout == 'conclusion':
-            # Generate conclusion slide using full text
-            content = generate_content_from_extracted_text(
-                'conclusion', topic, full_text, slide_number, slide_count
-            )
-            slides.append({
-                'layout': 'conclusion',
-                'content': content
-            })
-            
-        else:
-            # Generate content slide using appropriate text section
-            section_index = slide_number - 2  # Adjust for title slide
-            section_text = text_sections[section_index] if section_index < len(text_sections) else full_text
-            
-            content = generate_content_from_extracted_text(
-                layout, topic, section_text, slide_number, slide_count
-            )
-            slides.append({
-                'layout': layout,
-                'content': content
-            })
-    
-    logging.info(f"Generated {len(slides)} slides based on Ollama structure analysis")
-    return slides
-
-# Update the process-document route to remove slide count from response
 @app.route('/api/process-document', methods=['POST'])
 def process_document():
     try:
@@ -1146,127 +917,50 @@ def process_text_content():
         logging.error(f"Error processing text content: {e}")
         return jsonify({'error': f'Text processing failed: {str(e)}'}), 500
 
-@app.route('/api/generate', methods=['POST'])
-@login_required
-def generate():
-    data = request.json
-    template = data.get('template')
-    topic = data.get('topic')
-    slide_count = data.get('slideCount', 6)
-    
-    logging.info(f" GENERATE REQUEST: topic='{topic}', slideCount={slide_count}, template='{template}'")
-    
-    slide_count = min(max(1, int(slide_count)), 10)
-    logging.info(f"Validated slide_count: {slide_count}")
-    
-    slides = []
-    
-    if slide_count == 1:
-        title_content = generate_content('titleOnly', topic, slide_index=1, total_slides=1)
-        title_content['topic'] = topic  # Add topic for processing
-        processed_title_content = process_content_for_layout(title_content, 'titleOnly')
-        
-        if 'title' not in processed_title_content or not processed_title_content['title']:
-            processed_title_content['title'] = f"{topic.capitalize()}"
-        if 'subtitle' not in processed_title_content or not processed_title_content['subtitle']:
-            processed_title_content['subtitle'] = "An In-depth Overview"
-        
-        slides.append({
-            'layout': 'titleOnly',
-            'content': processed_title_content
-        })
-        
-        logging.info(f"Generated {len(slides)} slides for slide_count=1")
-        return jsonify({'slides': slides, 'template': template})
-    
-    if slide_count == 2:
-        # Title slide
-        title_content = generate_content('titleOnly', topic, slide_index=1, total_slides=2)
-        title_content['topic'] = topic
-        processed_title_content = process_content_for_layout(title_content, 'titleOnly')
-        
-        if 'title' not in processed_title_content or not processed_title_content['title']:
-            processed_title_content['title'] = f"{topic.capitalize()}"
-        if 'subtitle' not in processed_title_content or not processed_title_content['subtitle']:
-            processed_title_content['subtitle'] = "An In-depth Overview"
-        
-        slides.append({
-            'layout': 'titleOnly',
-            'content': processed_title_content
-        })
-        
-        conclusion_content = generate_content('conclusion', topic, slide_index=2, total_slides=2)
-        conclusion_content['topic'] = topic
-        processed_conclusion_content = process_content_for_layout(conclusion_content, 'conclusion')
-        
-        slides.append({
-            'layout': 'conclusion',
-            'content': processed_conclusion_content
-        })
-        
-        logging.info(f"Generated {len(slides)} slides for slide_count=2 (title + conclusion)")
-        return jsonify({'slides': slides, 'template': template})
-        
-    # Continue with rest of the generate function...
-    title_content = generate_content('titleOnly', topic, slide_index=1, total_slides=slide_count)
-    title_content['topic'] = topic
-    processed_title_content = process_content_for_layout(title_content, 'titleOnly')
-    
-    if 'title' not in processed_title_content or not processed_title_content['title']:
-        processed_title_content['title'] = f"{topic.capitalize()}"
-    if 'subtitle' not in processed_title_content or not processed_title_content['subtitle']:
-        processed_title_content['subtitle'] = "An In-depth Overview"
-    
-    slides.append({
-        'layout': 'titleOnly',
-        'content': processed_title_content
-    })
-    
-    content_slides_needed = slide_count - 2  
-    
-    available_layouts = [layout for layout in LAYOUTS if layout not in ['titleOnly', 'conclusion']]
-    random.shuffle(available_layouts)
-    
-    for i in range(content_slides_needed):
-        slide_position = i + 2  
-        
-        layout = available_layouts[i % len(available_layouts)]
-        
-        content = generate_content(layout, topic, slide_index=slide_position, total_slides=slide_count)
-        content['topic'] = topic
-        
-        if isinstance(content, dict) and content.get("unsuitable_layout"):
-            logging.info(f"Substituting unsuitable layout '{layout}' for topic '{topic}'")
-            substitute_layouts = ["imageAndParagraph", "titleAndBullets", "quote"]
-            substitute_layout = substitute_layouts[i % len(substitute_layouts)]
-            content = generate_content(substitute_layout, topic, slide_index=slide_position, total_slides=slide_count)
-            content['topic'] = topic
-            layout = substitute_layout
-        
-        processed_content = process_content_for_layout(content, layout)
-        
-        slides.append({
-            'layout': layout,
-            'content': processed_content
-        })
-    
-    conclusion_content = generate_content('conclusion', topic, slide_index=slide_count, total_slides=slide_count)
-    conclusion_content['topic'] = topic
-    processed_conclusion_content = process_content_for_layout(conclusion_content, 'conclusion')
-    
-    slides.append({
-        'layout': 'conclusion',
-        'content': processed_conclusion_content
-    })
-    
-    logging.info(f"Generated {len(slides)} slides (expected: {slide_count})")
-    logging.info(f"Structure: Title + {content_slides_needed} content slides + Conclusion")
-    
-    return jsonify({
-        'slides': slides,
-        'template': template
-    })
+# Add these routes to your app.py file
 
+
+    
+@app.route('/create')
+@login_required
+def create():
+    """New landing page for method selection"""
+    return render_template('create.html')
+
+
+# Update your /api/process-headings route to handle the new heading-based splitting
+@app.route('/api/process-headings', methods=['POST'])
+@login_required
+def process_headings():
+    """Process text/document and detect headings for slides"""
+    data = request.json
+    content = data.get('content', '')
+    method = data.get('method', 'text')
+    processing_mode = data.get('processing_mode', 'preserve')
+    
+    try:
+        if method == 'text':
+            # Process text and detect headings
+            slides_structure = detect_headings_and_structure(content)
+        elif method == 'upload':
+            # Process uploaded document
+            slides_structure = detect_headings_and_structure(content)
+        else:
+            return jsonify({'error': 'Invalid method'}), 400
+        
+        return jsonify({
+            'success': True,
+            'slides': slides_structure,
+            'method': method,
+            'processing_mode': processing_mode,
+            'slide_count': len(slides_structure),
+            'detected_headings': len([s for s in slides_structure if s.get('is_heading', False)])
+        })
+        
+    except Exception as e:
+        logging.error(f"Error processing headings: {e}")
+        return jsonify({'error': str(e)}), 500
+    
 with app.app_context():
     db.create_all()
 

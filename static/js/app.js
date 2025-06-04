@@ -1,6 +1,6 @@
 // app.js - Main application logic for the PowerPoint generator with editing functionality
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     // Cache DOM elements
     const topicInput = document.getElementById('topic');
     const slideCountInput = document.getElementById('slide-count');
@@ -9,19 +9,19 @@ document.addEventListener('DOMContentLoaded', function() {
     const slidePreview = document.getElementById('slide-preview');
     const loadingIndicator = document.getElementById('loading');
     const previewSection = document.getElementById('preview-section');
-    
+
     // Create a container for the edit button outside the slide preview
     const editButtonContainer = document.createElement('div');
     editButtonContainer.className = 'edit-controls';
     editButtonContainer.id = 'external-edit-controls';
     editButtonContainer.style.display = 'none'; // Hide initially
-    
+
     // Insert the edit button container right after the slide preview
     slidePreview.parentNode.insertBefore(editButtonContainer, slidePreview.nextSibling);
-        setTimeout(() => {
+    setTimeout(() => {
         debugSlideCountInput();
     }, 1000);
-    
+
     // Application state
     let currentState = {
         slides: [],
@@ -30,131 +30,111 @@ document.addEventListener('DOMContentLoaded', function() {
         currentSlideIndex: 0,
         editMode: false
     };
-    
+
     // Event listeners
     generateBtn.addEventListener('click', handleGenerate);
     exportBtn.addEventListener('click', handleExport);
     function debugSlideCountInput() {
-    console.log('=== SLIDE COUNT INPUT DEBUG ===');
-    console.log('getElementById("slide-count"):', document.getElementById('slide-count'));
-    console.log('querySelector("#slide-count"):', document.querySelector('#slide-count'));
-    console.log('querySelector("input[type=number]"):', document.querySelector('input[type="number"]'));
-    console.log('All number inputs:', document.querySelectorAll('input[type="number"]'));
-    
-    const slideCountElement = document.getElementById('slide-count');
-    if (slideCountElement) {
-        console.log('Slide count value:', slideCountElement.value);
-        console.log('Slide count type:', typeof slideCountElement.value);
-        console.log('Parsed value:', parseInt(slideCountElement.value, 10));
-    } else {
-        console.log('Slide count input NOT FOUND!');
-        console.log('Available form inputs:');
-        document.querySelectorAll('input').forEach((input, index) => {
-            console.log(`Input ${index}:`, {
-                id: input.id,
-                name: input.name,
-                type: input.type,
-                value: input.value
+        console.log('=== SLIDE COUNT INPUT DEBUG ===');
+        console.log('getElementById("slide-count"):', document.getElementById('slide-count'));
+        console.log('querySelector("#slide-count"):', document.querySelector('#slide-count'));
+        console.log('querySelector("input[type=number]"):', document.querySelector('input[type="number"]'));
+        console.log('All number inputs:', document.querySelectorAll('input[type="number"]'));
+
+        const slideCountElement = document.getElementById('slide-count');
+        if (slideCountElement) {
+            console.log('Slide count value:', slideCountElement.value);
+            console.log('Slide count type:', typeof slideCountElement.value);
+            console.log('Parsed value:', parseInt(slideCountElement.value, 10));
+        } else {
+            console.log('Slide count input NOT FOUND!');
+            console.log('Available form inputs:');
+            document.querySelectorAll('input').forEach((input, index) => {
+                console.log(`Input ${index}:`, {
+                    id: input.id,
+                    name: input.name,
+                    type: input.type,
+                    value: input.value
+                });
             });
-        });
+        }
+        console.log('=== END DEBUG ===');
     }
-    console.log('=== END DEBUG ===');
-}
     // Generate slides
-async function handleGenerate() {
-    const topic = topicInput.value.trim();
-    const templateId = window.selectedTemplateId;
-    
-    // 🔍 DEBUG: Check if slide count input exists
-    const slideCountElement = document.getElementById('slide-count');
-    console.log('Slide count element found:', !!slideCountElement);
-    
-    if (!slideCountElement) {
-        console.error('Slide count input element not found! Looking for #slide-count');
-        alert('Slide count input not found. Please refresh the page.');
-        return;
-    }
-    
-    const slideCount = parseInt(slideCountElement.value, 10) || 6;
-    console.log('Slide count value:', slideCount);
-    
-    // Validate input
-    if (!topic) {
-        alert('Please enter a presentation topic');
-        return;
-    }
-    
-    if (!templateId) {
-        alert('Please select a template');
-        return;
-    }
-    
-    // Show loading indicator
-    loadingIndicator.classList.remove('hidden');
-    slidePreview.innerHTML = '';
-    editButtonContainer.style.display = 'none';
-    
-    // Disable buttons during generation
-    generateBtn.disabled = true;
-    exportBtn.disabled = true;
-    
-    try {
-        console.log('Sending request with slideCount:', slideCount);
-        
-        // Call the backend to generate content
-        const response = await fetch('/api/generate', {
+
+    async function generateWithOutline(inputMethod) {
+        // Stage 1: Generate outline
+        showLoadingWithMessage("Creating presentation outline...");
+
+        const outlineData = {
+            topic: getTopicFromCurrentMethod(),
+            slideCount: parseInt(document.getElementById('slide-count').value) || 5,
+            inputMethod: inputMethod
+        };
+
+        if (inputMethod === 'text') {
+            outlineData.textContent = window.inputMethodsHandler.getTextContent();
+        }
+
+        console.log('Generating outline with data:', outlineData);
+
+        const outlineResponse = await fetch('/api/generate-outline', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(outlineData)
+        });
+
+        if (!outlineResponse.ok) {
+            const errorData = await outlineResponse.json().catch(() => ({}));
+            throw new Error(errorData.error || `Outline generation failed: ${outlineResponse.status}`);
+        }
+
+        const outlineResult = await outlineResponse.json();
+        console.log('Outline generated:', outlineResult);
+
+
+        const approvedOutline = outlineResult.outline; // Auto-approve for now
+
+        // Stage 2: Generate slides from outline
+        showLoadingWithMessage("Generating slides with context and flow...");
+
+        const slidesResponse = await fetch('/api/generate-from-outline', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                template: templateId,
-                topic: topic,
-                slideCount: slideCount  //  ENSURE this is sent
+                outline: approvedOutline,
+                template: window.selectedTemplateId
             })
         });
-        
-        if (!response.ok) {
-            throw new Error(`Server responded with status: ${response.status}`);
+
+        if (!slidesResponse.ok) {
+            const errorData = await slidesResponse.json().catch(() => ({}));
+            throw new Error(errorData.error || `Slide generation failed: ${slidesResponse.status}`);
         }
-        
-        const data = await response.json();
-        
-        console.log('Received slides:', data.slides.length, 'Expected:', slideCount);
-        
-        // 🔍 DEBUG: Verify slide count matches
-        if (data.slides.length !== slideCount) {
-            console.warn(`Slide count mismatch! Expected: ${slideCount}, Got: ${data.slides.length}`);
-        }
-        
-        currentState = {
-            slides: data.slides,
-            templateId: templateId,
-            topic: topic,
-            currentSlideIndex: 0,
-            editMode: false
+
+        const slidesResult = await slidesResponse.json();
+        console.log('Slides generated from outline:', slidesResult);
+
+        return {
+            slides: slidesResult.slides,
+            outline: slidesResult.outline,
+            generation_method: 'outline-based'
         };
-        
-        renderCurrentSlide();
-        updateEditButton();
-        
-        // Enable export button
-        exportBtn.disabled = false;
-    } catch (error) {
-        console.error('Error generating slides:', error);
-        alert('There was an error generating your slides. Please try again.');
-        slidePreview.innerHTML = `
-            <div class="placeholder-message">
-                Error: Could not generate slides. Please try again.
-            </div>
-        `;
-    } finally {
-        // Hide loading indicator
-        loadingIndicator.classList.add('hidden');
-        generateBtn.disabled = false;
     }
-}
+
+    function showLoadingWithMessage(message) {
+        const loadingIndicator = document.getElementById('loading');
+        const loadingText = loadingIndicator.querySelector('p');
+
+        if (loadingText) {
+            loadingText.textContent = message;
+        }
+
+        loadingIndicator.classList.remove('hidden');
+    }
+
     
+
     // Update the edit button outside the slide preview
     function updateEditButton() {
         if (!currentState.slides || currentState.slides.length === 0) {
@@ -163,23 +143,23 @@ async function handleGenerate() {
         }
         editButtonContainer.style.display = 'flex';
     }
-    
+
     // Export to PPTX
     async function handleExport() {
         if (!currentState.slides || currentState.slides.length === 0) {
             alert('Please generate slides first.');
             return;
         }
-        
+
         // Exit edit mode before exporting
         if (currentState.editMode) {
             saveCurrentEdit();
         }
-        
+
         // Show loading indicator
         loadingIndicator.classList.remove('hidden');
         exportBtn.disabled = true;
-        
+
         try {
             // Call the backend to export PPTX
             const response = await fetch('/api/export', {
@@ -193,14 +173,14 @@ async function handleGenerate() {
                     topic: currentState.topic
                 })
             });
-            
+
             if (!response.ok) {
                 throw new Error(`Server responded with status: ${response.status}`);
             }
-            
+
             // Convert response to blob
             const blob = await response.blob();
-            
+
             // Create a download link and trigger download
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -210,7 +190,7 @@ async function handleGenerate() {
             a.click();
             document.body.removeChild(a);
             window.URL.revokeObjectURL(url);
-            
+
             alert('Export completed!');
         } catch (error) {
             console.error('Error exporting to PPTX:', error);
@@ -221,7 +201,7 @@ async function handleGenerate() {
             exportBtn.disabled = false;
         }
     }
-    
+
     // Other required functions
     function renderCurrentSlide() {
         if (!currentState.slides || currentState.slides.length === 0) {
@@ -235,19 +215,19 @@ async function handleGenerate() {
             currentState.templateId
         );
     }
-    
+
     function enterEditMode() {
         currentState.editMode = true;
         renderCurrentSlide();
         updateEditButton();
     }
-    
+
     function exitEditMode() {
         currentState.editMode = false;
         renderCurrentSlide();
         updateEditButton();
     }
-    
+
     function saveCurrentEdit() {
         const formData = window.ppgLayouts.collectFormData(
             currentState.slides[currentState.currentSlideIndex].layout

@@ -535,51 +535,56 @@ class InputMethodsHandler {
         }
     }
 
-    validateCurrentInput() {
-        // Clear data from inactive methods first
-        this.clearInactiveMethods();
 
-        switch (this.currentMethod) {
-            case 'topic':
-                const topic = document.getElementById('topic').value.trim();
-                return topic ? { valid: true } : { valid: false, message: 'Please enter a presentation topic' };
-
-            case 'text':
-                const text = this.getTextContent();
-                if (!text) {
-                    return { valid: false, message: 'Please paste some text content' };
+validateCurrentInput() {
+    switch (this.currentMethod) {
+        case 'topic':
+            const topic = document.getElementById('topic').value.trim();
+            if (!topic) {
+                return { valid: false, message: 'Please enter a presentation topic' };
+            }
+            
+            // Check slide count for topic method
+            const slideCountInput = document.getElementById('slide-count');
+            if (slideCountInput) {
+                const slideCount = parseInt(slideCountInput.value, 10);
+                if (isNaN(slideCount) || slideCount < 1 || slideCount > 10) {
+                    return { valid: false, message: 'Please enter a valid slide count (1-10)' };
                 }
-                if (text.length < 50) {
-                    return { valid: false, message: 'Please provide more text content (at least 50 characters)' };
-                }
-                return { valid: true };
+            }
+            return { valid: true };
 
-            case 'document':
-                const fileInput = document.getElementById('file-input');
-                const hasProcessedContent = this.processedContent !== null;
-                const hasExtractedText = this.extractedText !== null;
+        case 'text':
+            const text = this.getTextContent();
+            if (!text) {
+                return { valid: false, message: 'Please paste some text content' };
+            }
+            if (text.length < 50) {
+                return { valid: false, message: 'Please provide more text content (at least 50 characters)' };
+            }
+            
+            // For text method, slide count is suggested but not required for outline
+            return { valid: true };
 
-                if (!fileInput || !fileInput.files.length) {
-                    return { valid: false, message: 'Please upload a document' };
-                }
+        case 'document':
+            // Document method uses existing validation
+            const fileInput = document.getElementById('file-input');
+            const hasProcessedContent = this.processedContent !== null;
 
-                if (!hasProcessedContent || !hasExtractedText) {
-                    return { valid: false, message: 'Document is still processing or failed to process' };
-                }
+            if (!fileInput || !fileInput.files.length) {
+                return { valid: false, message: 'Please upload a document' };
+            }
 
-                console.log('Document validation passed:', {
-                    hasFile: !!fileInput.files.length,
-                    hasProcessedContent,
-                    hasExtractedText,
-                    textLength: this.extractedText?.length || 0
-                });
+            if (!hasProcessedContent) {
+                return { valid: false, message: 'Document is still processing' };
+            }
 
-                return { valid: true };
+            return { valid: true };
 
-            default:
-                return { valid: false, message: 'Invalid input method' };
-        }
+        default:
+            return { valid: false, message: 'Invalid input method' };
     }
+}
 
     clearInactiveMethods() {
         const activeMethod = this.currentMethod;
